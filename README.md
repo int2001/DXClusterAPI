@@ -11,7 +11,11 @@ Open Shell (have node-js and git already installed!):
 * change to DXClusterAPI Directory (f.ex. `cd DXClusterAPI`)
 * rename `config.js.sample` to `config.js` and edit it (adjust callsign, max cached spots, port of service)
 * type `npm install`
-* start the Script f.ex. by typing `node ./index.js` or launching it within `pm2`
+* start the Script f.ex. by typing `node ./index.js` or launching it within `pm2 start ./index.js`
+
+# Hints/Tips
+* tools logs access.log-style to console (or logfile if pm2 is used)
+* you can restrict browser-access by editing the cors-line at index.js
 
 # Using it
 * point your Client (Browser / programm) to http://[host_where_it_is_running:port]/spots to get a list of all cached spots
