@@ -32,10 +32,10 @@ conn.on('spot', (spot) => {
 	if (spots.length>config.maxcache) {
 		spots.shift();
 	}
-	console.log(spots);
+	// console.log(spots);
 })
 
-app.listen(config.webport, () => {
+app.listen(config.webport,'127.0.0.1', () => {
 	console.log('listener started on Port '+config.webport);
 });
 
