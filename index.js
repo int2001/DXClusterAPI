@@ -5,8 +5,6 @@ const app = express()
 const path = require("path")
 const config = require("./config.js");
 
-app.use("/",express.static(path.resolve(__dirname, "./c")))
-
 conn = new DXCluster()
 var spots=[];
 
