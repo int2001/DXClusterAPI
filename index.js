@@ -4,6 +4,20 @@ const express = require("express");
 const app = express()
 const path = require("path")
 const config = require("./config.js");
+const cors = require('cors');
+const morgan = require('morgan');
+
+morgan.token('remote-addr', function (req, res) {
+        var ffHeaderValue = req.headers['x-forwarded-for'];
+        return ffHeaderValue || req.connection.remoteAddress;
+});
+
+app.disable('x-powered-by');
+app.use(express.json());
+app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" :response-time ms'));
+app.use(cors({
+	origin: '*'
+}));
 
 conn = new DXCluster()
 var spots=[];
@@ -32,10 +46,10 @@ conn.on('spot', (spot) => {
 	if (spots.length>config.maxcache) {
 		spots.shift();
 	}
-	console.log(spots);
+	// console.log(spots);
 })
 
-app.listen(config.webport, () => {
+app.listen(config.webport,'127.0.0.1', () => {
 	console.log('listener started on Port '+config.webport);
 });
 
