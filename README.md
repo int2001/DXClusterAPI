@@ -1,6 +1,10 @@
 # DXClusterAPI
 Simple JSON API for DXCluster
 
+# Example-API
+For testing- and development we set Up a small live-instance, which caches 1000 Spots.
+More information how to use it: [Here](https://jo30.de/dxcluster-per-rest-json/)
+
 # Purpose
 Make last n Spots of DXCluster accessible via API to use it in other Applications without having the stream there.
 How is it done: Stream DXCluster to memory and put a small REST-API on it
@@ -20,6 +24,7 @@ Open Shell (have node-js and git already installed!):
 # Using it
 * point your Client (Browser / programm) to http://[host_where_it_is_running:port]/spots to get a list of all cached spots
 * point your Client (Browser / programm) to http://[host_where_it_is_running:port]/spot/[QRG in kHz] to get the latest spot of that QRG
+
 
 Sample output of /spots:
 ```
