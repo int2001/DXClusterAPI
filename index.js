@@ -58,7 +58,7 @@ conn.on('spot', (spot) => {
 	if (spots.length>config.maxcache) {
 		spots.shift();
 	}
-	console.log(spot);
+	// console.log(spot);
 })
 
 async function main() {
