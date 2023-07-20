@@ -34,13 +34,25 @@ app.get(config.baseUrl + '/spots', function(req, res){        // Fallback Route
 	res.json(spots);
 });
 
-conn.connect(config.dxc)
-.then(() => {
-	console.log('connected')
-})
-.catch((err) => {
-	console.log(err);
-})
+app.get(config.baseUrl + '/stats', function(req, res){        // Fallback Route
+	let stats={};
+	stats.entries=spots.length;
+	stats.freshest=get_freshest(spots);
+	stats.oldest=get_oldest(spots);
+	res.json(stats);
+});
+
+reconnect();
+
+conn.on('close', () => {
+	console.log("Conn closed / reconnect");
+	reconnect();
+});
+
+conn.on('timeouyr', () => {
+	console.log("Conn timeouted / reconnect");
+	reconnect();
+});
 
 conn.on('spot', (spot) => {
 	spot.add=qrg2band(spot.frequency);
@@ -48,7 +60,7 @@ conn.on('spot', (spot) => {
 	if (spots.length>config.maxcache) {
 		spots.shift();
 	}
-	// console.log(spot);
+	// console.log(spot.spotted + " @ " + spot.when);
 })
 
 async function main() {
@@ -99,3 +111,33 @@ function qrg2band (qrg) {
 	return r;
 }
 
+function get_freshest(spotobj) {
+	let youngest=Date.parse('1970-01-01T00:00:00.000Z');
+	spotobj.forEach((single) => {
+		if((Date.parse(single.when)>youngest)) {
+			youngest=Date.parse(single.when);
+		}
+	});
+	return new Date(youngest).toISOString();
+}
+	
+function get_oldest(spotobj) {
+	let oldest=Date.parse('2032-01-01T00:00:00.000Z');
+	spotobj.forEach((single) => {
+		if((Date.parse(single.when)<oldest)) {
+			oldest=Date.parse(single.when);
+		}
+	});
+	return new Date(oldest).toISOString();
+}
+	
+
+function reconnect() {
+	conn.connect(config.dxc)
+	.then(() => {
+		console.log('connected')
+	})
+	.catch((err) => {
+		console.log(err);
+	})
+}
