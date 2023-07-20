@@ -6,6 +6,12 @@ const path = require("path")
 const config = require("./config.js");
 const cors = require('cors');
 const morgan = require('morgan');
+const dxccjs = require('dxccjs');
+const fs = require('fs');
+const http = require('https');
+const zlib = require('zlib');
+
+var dxcc;
 
 morgan.token('remote-addr', function (req, res) {
         var ffHeaderValue = req.headers['x-forwarded-for'];
@@ -42,16 +48,35 @@ conn.connect(config.dxc)
 
 conn.on('spot', (spot) => {
 	spot.add=qrg2band(spot.frequency);
+	if ( (config.clublogKey) && (config.clublogKey != '') ) {
+		spot.add.decont=dxcc.checkCall(spot.spotter).cont[0];
+		spot.add.dxcont=dxcc.checkCall(spot.spotted).cont[0];
+		spot.add.cqz=dxcc.checkCall(spot.spotted).cqz[0];
+		spot.add.entity=dxcc.checkCall(spot.spotted).entity[0];
+	}
 	spots.push(spot);
 	if (spots.length>config.maxcache) {
 		spots.shift();
 	}
-	// console.log(spots);
+	// console.log(spot);
 })
 
-app.listen(config.webport,'127.0.0.1', () => {
-	console.log('listener started on Port '+config.webport);
-});
+async function main() {
+	try {
+		if ( (config.clublogKey) && (config.clublogKey != '') ) {
+			await dl_latest_dxcc();
+			dxcc = new dxccjs('./data/cty.xml');
+		}
+		app.listen(config.webport,'127.0.0.1', () => {
+			console.log('listener started on Port '+config.webport);
+		});
+	} catch(e) {
+		console.log("Error Occured:  "+e);
+		process.exit(99);
+	} 
+}
+
+main();
 
 function get_singlespot (qrg) {
 	let ret={};
@@ -86,4 +111,27 @@ function qrg2band (qrg) {
 		case (qrg>=24890 && qrg<=24990):	r.band=12; break;
 	}
 	return r;
+}
+
+async function dl_latest_dxcc() {
+	return new Promise((resolve, reject) => {
+		let url='https://cdn.clublog.org/cty.php?api=' + config.clublogKey;
+		const file = fs.createWriteStream("./data/cty.xml");
+		const request = http.get(url, function(response) {
+			request.on('error', function(err) {
+				reject('unable to Download DXCC-Info to ' + err);
+			});
+			if (response.statusCode != 200) {
+				reject("Download failed");
+			} else {
+				response.pipe(zlib.createGunzip()).pipe(file);
+			}
+			// after download completed close filestream
+			file.on("finish", () => {
+				file.close();
+				console.log("Download Completed");
+				resolve();
+			});
+		});
+	});
 }
