@@ -48,11 +48,16 @@ conn.connect(config.dxc)
 
 conn.on('spot', (spot) => {
 	spot.add=qrg2band(spot.frequency);
+	let addons={};
 	if ( (config.clublogKey) && (config.clublogKey != '') ) {
-		spot.add.decont=dxcc.checkCall(spot.spotter).cont[0];
-		spot.add.dxcont=dxcc.checkCall(spot.spotted).cont[0];
-		spot.add.cqz=dxcc.checkCall(spot.spotted).cqz[0];
-		spot.add.entity=dxcc.checkCall(spot.spotted).entity[0];
+		addons.spotter=dxcc.checkCall(spot.spotter)
+		addons.spotted=dxcc.checkCall(spot.spotted)
+		if ( (Object.keys(addons.spotter).length>0) && (Object.keys(addons.spotted).length>0) ) {
+			spot.add.decont=dxcc.checkCall(spot.spotter).cont[0];
+			spot.add.dxcont=dxcc.checkCall(spot.spotted).cont[0];
+			spot.add.cqz=dxcc.checkCall(spot.spotted).cqz[0];
+			spot.add.entity=dxcc.checkCall(spot.spotted).entity[0];
+		}
 	}
 	spots.push(spot);
 	if (spots.length>config.maxcache) {
