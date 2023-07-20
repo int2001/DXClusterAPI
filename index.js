@@ -49,7 +49,7 @@ conn.on('close', () => {
 	reconnect();
 });
 
-conn.on('timeouyr', () => {
+conn.on('timeout', () => {
 	console.log("Conn timeouted / reconnect");
 	reconnect();
 });
