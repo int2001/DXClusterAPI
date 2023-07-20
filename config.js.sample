@@ -7,8 +7,7 @@ const config = {
 	},
 	maxcache: 50,
 	webport: 8090,
-	baseUrl: "/dxcache",
-	clublogKey: ""	// clublog-API-Key here. Can be obtained at https://clublog.org/need_api.php
+	baseUrl: "/dxcache"
 }
 
 module.exports = config
