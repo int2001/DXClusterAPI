@@ -59,4 +59,16 @@ Sample Output of /spot/14027:
 }
 ```
 
+Some explaination:
+* spotter: the Ham who spotted the Call
+* spotted: the who is spotted
+* frequency: QRG in kHz
+* message: message given by the spotter at the Cluster
+* when: UTC-Timestamp of spot
+* add: Additional-Infos
+  * decont: Continent of the spotter
+  * dxcont: Continent of the spotted station
+  * czq: CQ-Zone of the spotted station
+  * entity: DXCC-Name of the spotted station
+
 Notice: Not all Fields in Object "add" are always filled. There's a rudimentary logic in this API to derivate band and Mode out of spot. Don't rely on that!
