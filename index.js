@@ -60,6 +60,7 @@ conn.on('spot', (spot) => {
 	if (spots.length>config.maxcache) {
 		spots.shift();
 	}
+	spots=reduce_spots(spots);
 	// console.log(spot.spotted + " @ " + spot.when);
 })
 
@@ -131,6 +132,15 @@ function get_oldest(spotobj) {
 	return new Date(oldest).toISOString();
 }
 	
+function reduce_spots(spotobject) { // Try to reduce spots a little (Delete dupes and only hold youngest)
+	let unique=[];
+	spotobject.forEach((single) => {
+		if (!spotobject.find((item) => ((item.spotted == single.spotted) && (item.spotter == item.spotted) && (item.frequency == single.frequency) && (Date.parse(item.when)>Date.parse(single.when))))) {
+			unique.push(single);
+		}
+	});
+	return unique;
+}
 
 function reconnect() {
 	conn.connect(config.dxc)
