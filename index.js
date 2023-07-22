@@ -6,7 +6,7 @@ const path = require("path")
 const config = require("./config.js");
 const cors = require('cors');
 const morgan = require('morgan');
-
+const gearman = require('gearman');
 var dxcc;
 
 morgan.token('remote-addr', function (req, res) {
@@ -54,7 +54,11 @@ conn.on('timeout', () => {
 	reconnect();
 });
 
-conn.on('spot', (spot) => {
+conn.on('spot', async function x(spot) {
+	try {
+		spot.dxcc_spotter=await dxcc_lookup(spot.spotter);
+		spot.dxcc_spotted=await dxcc_lookup(spot.spotted);
+	} catch(e) { }
 	spot.add=qrg2band(spot.frequency);
 	spots.push(spot);
 	if (spots.length>config.maxcache) {
@@ -150,4 +154,27 @@ function reconnect() {
 	.catch((err) => {
 		console.log(err);
 	})
+}
+
+async function dxcc_lookup(call) {
+	return new Promise((resolve,reject) => {
+		try {
+			let dxclient=gearman("127.0.0.1", 4730 , {timeout: 2000});
+			dxclient.connect(function() {
+				// console.log('look up:', call);
+				dxclient.submitJob('dxcc', call)
+			});
+			dxclient.on('WORK_COMPLETE', function(job) {
+				// console.log('job completed, result:', job.payload.toString())
+				dxclient.close()
+				resolve(JSON.parse(job.payload.toString()));
+			});
+			dxclient.on('timeout', function() {
+				dxclient.close()
+				reject("Timeout");
+			});
+		} catch(e) {
+			reject();
+		}
+	});
 }
