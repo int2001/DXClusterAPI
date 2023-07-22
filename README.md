@@ -17,12 +17,15 @@ Open Shell (have node-js and git already installed!):
 * type `npm install`
 * start the Script f.ex. by typing `node ./index.js` or launching it within `pm2 start ./index.js`
 
+* You can use this together with the [gearman-Version of dxcc-lookup](https://github.com/int2001/dxcc_lookup). Everytime a fresh spots appears this feature adds DXCC-Information for spotter and spotted to the cache.
+
 # Hints/Tips
 * tools logs access.log-style to console (or logfile if pm2 is used)
 * you can restrict browser-access by editing the cors-line at index.js
 
 # Using it
 * point your Client (Browser / programm) to http://[host_where_it_is_running:port]/spots to get a list of all cached spots
+* point your Client (Browser / programm) to http://[host_where_it_is_running:port]/spots/[Band] to get a list of all cached spots at that Band. (e.g. "40m")
 * point your Client (Browser / programm) to http://[host_where_it_is_running:port]/spot/[QRG in kHz] to get the latest spot of that QRG
 
 Sample output of /spots:
