@@ -61,8 +61,10 @@ conn.on('timeout', () => {
 
 conn.on('spot', async function x(spot) {
 	try {
-		spot.dxcc_spotter=await dxcc_lookup(spot.spotter);
-		spot.dxcc_spotted=await dxcc_lookup(spot.spotted);
+		if (config.dxcc_lookup.enabled) {
+			spot.dxcc_spotter=await dxcc_lookup(spot.spotter);
+			spot.dxcc_spotted=await dxcc_lookup(spot.spotted);
+		}
 	} catch(e) { }
 	spot.band=qrg2band(spot.frequency*1000);
 	spots.push(spot);
@@ -132,8 +134,14 @@ function get_oldest(spotobj) {
 function reduce_spots(spotobject) { // Try to reduce spots a little (Delete dupes and only hold youngest)
 	let unique=[];
 	spotobject.forEach((single) => {
-		if (!spotobject.find((item) => ((item.spotted == single.spotted) && (item.dxcc_spotter.cont == single.dxcc_spotter.cont) && (item.frequency == single.frequency) && (Date.parse(item.when)>Date.parse(single.when))))) {
-			unique.push(single);
+		if (config.dxcc_lookup.enabled) {
+			if (!spotobject.find((item) => ((item.spotted == single.spotted) && (item.dxcc_spotter.cont == single.dxcc_spotter.cont) && (item.frequency == single.frequency) && (Date.parse(item.when)>Date.parse(single.when))))) {
+				unique.push(single);
+			}
+		} else {
+			if (!spotobject.find((item) => ((item.spotted == single.spotted) && (item.frequency == single.frequency) && (Date.parse(item.when)>Date.parse(single.when))))) {
+				unique.push(single);
+			}
 		}
 	});
 	return unique;
@@ -152,7 +160,7 @@ function reconnect() {
 async function dxcc_lookup(call) {
 	return new Promise((resolve,reject) => {
 		try {
-			let dxclient=gearman("127.0.0.1", 4730 , {timeout: 2000});
+			let dxclient=gearman(config.dxcc_lookup.host, config.dxcc_lookup.port , {timeout: 2000});
 			dxclient.connect(function() {
 				// console.log('look up:', call);
 				dxclient.submitJob('dxcc', call)
