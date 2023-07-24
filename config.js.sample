@@ -7,7 +7,12 @@ const config = {
 	},
 	maxcache: 50,
 	webport: 8090,
-	baseUrl: "/dxcache"
+	baseUrl: "/dxcache",
+	dxcc_lookup: {
+		host: '127.0.0.1',	// Host of tour Gearman
+		port: 4730,		// Port of your Gearman
+		enabled: false	// Set this to true, if you have installed/running https://github.com/int2001/dxcc_lookup/tree/gearman
+	}
 }
 
 module.exports = config
