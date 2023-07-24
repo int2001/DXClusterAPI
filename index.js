@@ -1,5 +1,5 @@
 #!/usr/bin/env -S node
-const DXCluster = require('dxcluster');
+const DXCluster = require('./dxcluster');
 const express = require("express");
 const app = express()
 const path = require("path")
