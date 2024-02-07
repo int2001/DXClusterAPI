@@ -11,10 +11,9 @@ How is it done: Stream DXCluster to memory and put a small REST-API on it
 
 # SetUp
 Open Shell (have node-js and git already installed!):
-* install gearman (`apt install gearman gearman-job-server`) and configure it to your needs
 * `git clone https://github.com/int2001/DXClusterAPI.git`
 * change to DXClusterAPI Directory (f.ex. `cd DXClusterAPI`)
-* rename `config.js.sample` to `config.js` and edit it (adjust callsign, max cached spots, port of service, clublog API Key)
+* rename `config.js.sample` to `config.js` and edit it (adjust callsign, max cached spots, port of service, Wavelog URL & API Key)
 * type `npm install`
 * start the Script f.ex. by typing `node ./index.js` or launching it within `pm2 start ./index.js`
 
