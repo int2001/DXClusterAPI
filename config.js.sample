@@ -3,11 +3,13 @@ const config = {
 		host: 'dxfun.com',
 		port: 8000,
 		loginPrompt: 'login:',
-		call: '' // <- Your Call here!'
+		call: '[ur call]'
 	},
-	maxcache: 50,
-	webport: 8090,
-	baseUrl: "/dxcache"
+	maxcache: 500,
+	webport: 8092,
+	baseUrl: "/dxcache",
+	dxcc_lookup_wavelog_url: "https://[url to ur cloudlog]/index.php/api/lookup",
+	dxcc_lookup_wavelog_key: "[valid API Key from Cloudlog]",
 }
 
 module.exports = config

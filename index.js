@@ -63,13 +63,17 @@ conn.on('spot', async function x(spot) {
 	try {
 		spot.dxcc_spotter=await dxcc_lookup(spot.spotter);
 		spot.dxcc_spotted=await dxcc_lookup(spot.spotted);
-	} catch(e) { }
-	spot.band=qrg2band(spot.frequency*1000);
-	spots.push(spot);
-	if (spots.length>config.maxcache) {
-		spots.shift();
+		spot.band=qrg2band(spot.frequency*1000);
+		spots.push(spot);
+		if (spots.length>config.maxcache) {
+			spots.shift();
+		}
+		spots=reduce_spots(spots);
+	} catch(e) { 
+		console.log(spot);
+		console.log(e);
+	
 	}
-	spots=reduce_spots(spots);
 	// console.log(spot.spotted + " @ " + spot.when);
 })
 
@@ -149,29 +153,6 @@ function reconnect() {
 	})
 }
 
-async function dxcc_lookup(call) {
-	return new Promise((resolve,reject) => {
-		try {
-			let dxclient=gearman("127.0.0.1", 4730 , {timeout: 2000});
-			dxclient.connect(function() {
-				// console.log('look up:', call);
-				dxclient.submitJob('dxcc', call)
-			});
-			dxclient.on('WORK_COMPLETE', function(job) {
-				// console.log('job completed, result:', job.payload.toString())
-				dxclient.close()
-				resolve(JSON.parse(job.payload.toString()));
-			});
-			dxclient.on('timeout', function() {
-				dxclient.close()
-				reject("Timeout");
-			});
-		} catch(e) {
-			reject();
-		}
-	});
-}
-
 function qrg2band(Frequency) {
 	let Band = '';
 	if (Frequency > 1000000 && Frequency < 2000000) {
@@ -230,4 +211,66 @@ function qrg2band(Frequency) {
 		Band = "<1mm";
 	}
 	return Band
+}
+
+async function dxcc_lookup(call) {
+	return new Promise(async (resolve,reject) => {
+		try {
+			payload={};
+			payload.key=config.dxcc_lookup_wavelog_key;
+			payload.callsign=call;
+			result=await postData(config.dxcc_lookup_wavelog_url,payload);
+			returner={};
+			returner.cont=result.cont;
+			if (result.dxcc) {
+				returner.entity=toUcWord(result.dxcc);
+			} else {
+				returner.entity='';
+			}
+			returner.flag=result.dxcc_flag;
+			returner.dxcc_id=result.dxcc_id;
+			returner.lotw_user=result.lotw_member;
+			if (result.dxcc_lat) {
+				returner.lat=result.dxcc_lat;
+				returner.lng=result.dxcc_long;
+			} else {
+				returner.lat=null;
+				returner.lng=null;
+			}
+			resolve(returner);
+		} catch(e) {
+			console.log(e);
+			reject();
+		}
+	});
+}
+
+
+async function postData(url = "", data = {}) {
+  // Default options are marked with *
+  const response = await fetch(url, {
+    method: "POST", // *GET, POST, PUT, DELETE, etc.
+    mode: "cors", // no-cors, *cors, same-origin
+    cache: "no-cache", // *default, no-cache, reload, force-cache, only-if-cached
+    credentials: "same-origin", // include, *same-origin, omit
+    headers: {
+      "Content-Type": "application/json",
+      // 'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    redirect: "follow", // manual, *follow, error
+    referrerPolicy: "no-referrer", // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
+    body: JSON.stringify(data), // body data type must match "Content-Type" header
+  });
+  returner=await response.json();
+  return returner;
+}
+
+function toUcWord(string) {
+	let words = string.toLowerCase().split(" ");
+
+	for (let i = 0; i < words.length; i++) {
+		words[i] = words[i][0].toUpperCase() + words[i].substr(1);
+	}
+
+	return words.join(" ");
 }
