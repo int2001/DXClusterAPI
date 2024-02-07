@@ -18,7 +18,7 @@ Open Shell (have node-js and git already installed!):
 * type `npm install`
 * start the Script f.ex. by typing `node ./index.js` or launching it within `pm2 start ./index.js`
 
-* This has to be used together with the [gearman-Version of dxcc-lookup](https://github.com/int2001/dxcc_lookup). Everytime a fresh spots appears this feature adds DXCC-Information for spotter and spotted to the cache.
+* This has to be used together with [Wavelog](https://github.com/wavelog/wavelog). Everytime a fresh spots appears this feature adds DXCC-Information for spotter and spotted to the cache.
 
 # Hints/Tips
 * tools logs access.log-style to console (or logfile if pm2 is used)
