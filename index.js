@@ -59,6 +59,12 @@ conn.on('timeout', () => {
 	reconnect();
 });
 
+conn.on('error', function(ex) {
+	console.log("Conn other Error / reconnect");
+	console.log(ex);
+	reconnect();
+});
+
 conn.on('spot', async function x(spot) {
 	try {
 		spot.dxcc_spotter=await dxcc_lookup(spot.spotter);
