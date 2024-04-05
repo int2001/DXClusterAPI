@@ -1,13 +1,20 @@
-#!/usr/bin/env -S node
+#!/usr/bin/env -S bun
 const DXCluster = require('./dxcluster');
 const express = require("express");
 const app = express()
 const path = require("path")
-const config = require("./config.js");
 const cors = require('cors');
 const morgan = require('morgan');
 const gearman = require('gearman');
 var dxcc;
+
+var config = {};
+if (process.env.WEBPORT === undefined) {
+	config = require("./config.js");
+} else {
+	config={maxcache: process.env.MAXCACHE, webport: process.env.WEBPORT, baseUrl: process.env.WEBURL, dxcc_lookup_wavelog_url: process.env.WAVELOG_URL, dxcc_lookup_wavelog_key: process.env.WAVELOG_KEY };
+	config.dxc={ host: process.env.DXHOST, port: process.env.DXPORT, loginPrompt: 'login:', call: process.env.DXCALL };
+}
 
 morgan.token('remote-addr', function (req, res) {
         var ffHeaderValue = req.headers['x-forwarded-for'];
