@@ -9,7 +9,12 @@ More information how to use it: [Here](https://jo30.de/dxcluster-per-rest-json/)
 Make last n Spots of DXCluster accessible via API to use it in other Applications without having the stream there.
 How is it done: Stream DXCluster to memory and put a small REST-API on it
 
-# SetUp
+# SetUp (Pre-built)
+* Copy Paste contents of [/hub/docker-compose.yaml](https://github.com/int2001/DXClusterAPI/blob/dockerized/hub/docker-compose.yaml) into a local folder on your machine or Docker-Environment
+* Adjust docker-compose.yaml (ENV-Vars - they're commented) to your needs. Don't forget Wavelog-URL and Key
+* `docker-compose up -d` or "Start container" in your Docker-Env
+
+# SetUp (Self-built)
 * `git clone https://github.com/int2001/DXClusterAPI.git`
 * `cd DXClusterAPI`
 * `git checkout dockerized`
