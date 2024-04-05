@@ -1,4 +1,4 @@
-# DXClusterAPI
+# DXClusterAPI / Docker-Version
 Simple JSON API for DXCluster
 
 # Example-API
@@ -10,15 +10,11 @@ Make last n Spots of DXCluster accessible via API to use it in other Application
 How is it done: Stream DXCluster to memory and put a small REST-API on it
 
 # SetUp
-Open Shell (have node-js and git already installed!):
-* install gearman (`apt install gearman gearman-job-server`) and configure it to your needs
 * `git clone https://github.com/int2001/DXClusterAPI.git`
-* change to DXClusterAPI Directory (f.ex. `cd DXClusterAPI`)
-* rename `config.js.sample` to `config.js` and edit it (adjust callsign, max cached spots, port of service, clublog API Key)
-* type `npm install`
-* start the Script f.ex. by typing `node ./index.js` or launching it within `pm2 start ./index.js`
-
-* This has to be used together with the [gearman-Version of dxcc-lookup](https://github.com/int2001/dxcc_lookup). Everytime a fresh spots appears this feature adds DXCC-Information for spotter and spotted to the cache.
+* `cd DXClusterAPI`
+* `git checkout dockerized`
+* Adjust docker-compose.yaml (ENV-Vars - they're commented) to your needs. Don't forget Wavelog-URL and Key
+* `docker-compose up -d`
 
 # Hints/Tips
 * tools logs access.log-style to console (or logfile if pm2 is used)
