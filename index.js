@@ -92,7 +92,7 @@ conn.on('spot', async function x(spot) {
 
 async function main() {
 	try {
-		app.listen(config.webport,'127.0.0.1', () => {
+		app.listen(config.webport,'0.0.0.0', () => {
 			console.log('listener started on Port '+config.webport);
 		});
 	} catch(e) {
