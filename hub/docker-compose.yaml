@@ -1,7 +1,7 @@
 version: '3'
 services:
   dxcache:
-    image: dj7nt/dxclustercache:edge
+    image: ghcr.io/int2001/dxclusterapi:latest
     container_name: dxcache
     environment:
       MAXCACHE: 100	# Max Spots to cache
