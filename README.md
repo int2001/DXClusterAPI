@@ -34,34 +34,62 @@ How is it done: Stream DXCluster to memory and put a small REST-API on it
 Sample output of /spots:
 ```
 [
-{
-  spotter: 'F5EAN',
-  spotted: 'HB9G',
-  frequency: 96974,
-  message: '/B       IN96DK<TR>JN36BK RST 539',
-  when: 2023-07-20T05:10:00.693Z,
-  add: { decont: 'EU', dxcont: 'EU', cqz: '14', entity: 'SWITZERLAND' }
-}
-{
-  spotter: 'HA8LNN',
-  spotted: 'F6BCW',
-  frequency: 14027,
-  message: 'up1, nice signal',
-  when: 2023-07-20T05:10:05.589Z,
-  add: { decont: 'EU', dxcont: 'EU', cqz: '14', entity: 'FRANCE' }
-}
+    {
+        "spotter": "IK2MMM",
+        "spotted": "II1GM/2",
+        "frequency": 14258,
+        "message": "MARCONI AWARD 150ANNI",
+        "when": "2024-04-15T14:48:12.235Z",
+        "dxcc_spotter": {
+            "cont": "EU",
+            "entity": "Italy",
+            "flag": "🇮🇹",
+            "dxcc_id": "248",
+            "lotw_user": "2",
+            "lat": "41.9",
+            "lng": "12.5"
+        },
+        "dxcc_spotted": {
+            "cont": "EU",
+            "entity": "Italy",
+            "flag": "🇮🇹",
+            "dxcc_id": "248",
+            "lotw_user": false,
+            "lat": "41.9",
+            "lng": "12.5"
+        },
+        "band": "20m"
+    },
 ]
 ```
 
-Sample Output of /spot/14027:
+Sample Output of /spot/14310:
 ```
 {
-  spotter: 'HA8LNN',
-  spotted: 'F6BCW',
-  frequency: 14027,
-  message: 'up1, nice signal',
-  when: 2023-07-20T05:10:05.589Z,
-  add: { decont: 'EU', dxcont: 'EU', cqz: '14', entity: 'FRANCE' }
+  spotter: "EA4EHD",
+  spotted: "AO75CM",
+  frequency: 14310,
+  message: "AO75CM",
+  when: "2024-04-15T15:05:00.778Z",
+  dxcc_spotter: {
+  cont: "EU",
+  entity: "Spain",
+  flag: "🇪🇸",
+  dxcc_id: "281",
+  lotw_user: false,
+  lat: "40.4",
+  lng: "-3.7"
+},
+dxcc_spotted: {
+  cont: "EU",
+  entity: "Spain",
+  flag: "🇪🇸",
+  dxcc_id: "281",
+  lotw_user: false,
+  lat: "40.4",
+  lng: "-3.7"
+},
+  band: "20m"
 }
 ```
 
