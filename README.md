@@ -10,6 +10,10 @@ Make last n Spots of DXCluster accessible via API to use it in other Application
 How is it done: Stream DXCluster to memory and put a small REST-API on it
 
 # SetUp
+## Docker
+* Switch to dockerized Branch
+  
+## Classic
 Open Shell (have node-js and git already installed!):
 * `git clone https://github.com/int2001/DXClusterAPI.git`
 * change to DXClusterAPI Directory (f.ex. `cd DXClusterAPI`)
