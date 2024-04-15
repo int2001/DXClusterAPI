@@ -1,13 +1,11 @@
 name: Docker Image CI
 
 on:
-  push:
-    branches: [ "dockerized" ]
+  release:
+    types: [published]
 
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
