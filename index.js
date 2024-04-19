@@ -1,4 +1,5 @@
 #!/usr/bin/env -S bun
+"use strict";
 const DXCluster = require('./dxcluster');
 const express = require("express");
 const app = express()
@@ -35,6 +36,7 @@ app.get(config.baseUrl + '/spot/:qrg', function(req, res){        // Fallback Ro
 	var qrg=req.params.qrg;
 	single_spot=get_singlespot(qrg);
 	res.json(single_spot);
+	single_spot={};
 });
 
 app.get(config.baseUrl + '/spots', function(req, res){        // Fallback Route
@@ -44,6 +46,7 @@ app.get(config.baseUrl + '/spots', function(req, res){        // Fallback Route
 app.get(config.baseUrl + '/spots/:band', function(req, res){        // Fallback Route
 	bandspots=get_bandspots(req.params.band);
 	res.json(bandspots);
+	bandspots=[];
 });
 
 app.get(config.baseUrl + '/stats', function(req, res){        // Fallback Route
@@ -52,6 +55,7 @@ app.get(config.baseUrl + '/stats', function(req, res){        // Fallback Route
 	stats.freshest=get_freshest(spots);
 	stats.oldest=get_oldest(spots);
 	res.json(stats);
+	status={};
 });
 
 reconnect();
@@ -86,7 +90,8 @@ conn.on('spot', async function x(spot) {
 		console.log(spot);
 		console.log(e);
 	
-	}
+	} 
+		
 	// console.log(spot.spotted + " @ " + spot.when);
 })
 
@@ -229,11 +234,12 @@ function qrg2band(Frequency) {
 async function dxcc_lookup(call) {
 	return new Promise(async (resolve,reject) => {
 		try {
-			payload={};
+			let payload={};
 			payload.key=config.dxcc_lookup_wavelog_key;
 			payload.callsign=call;
 			result=await postData(config.dxcc_lookup_wavelog_url,payload);
-			returner={};
+			payload={};
+			let returner={};
 			returner.cont=result.cont;
 			if (result.dxcc) {
 				returner.entity=toUcWord(result.dxcc);
@@ -250,6 +256,7 @@ async function dxcc_lookup(call) {
 				returner.lat=null;
 				returner.lng=null;
 			}
+			result={};
 			resolve(returner);
 		} catch(e) {
 			console.log(e);
@@ -260,22 +267,22 @@ async function dxcc_lookup(call) {
 
 
 async function postData(url = "", data = {}) {
-  // Default options are marked with *
-  const response = await fetch(url, {
-    method: "POST", // *GET, POST, PUT, DELETE, etc.
-    mode: "cors", // no-cors, *cors, same-origin
-    cache: "no-cache", // *default, no-cache, reload, force-cache, only-if-cached
-    credentials: "same-origin", // include, *same-origin, omit
-    headers: {
-      "Content-Type": "application/json",
-      // 'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    redirect: "follow", // manual, *follow, error
-    referrerPolicy: "no-referrer", // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
-    body: JSON.stringify(data), // body data type must match "Content-Type" header
-  });
-  returner=await response.json();
-  return returner;
+	// Default options are marked with *
+	const response = await fetch(url, {
+		method: "POST", // *GET, POST, PUT, DELETE, etc.
+		mode: "cors", // no-cors, *cors, same-origin
+		cache: "no-cache", // *default, no-cache, reload, force-cache, only-if-cached
+		credentials: "same-origin", // include, *same-origin, omit
+		headers: {
+			"Content-Type": "application/json",
+			// 'Content-Type': 'application/x-www-form-urlencoded',
+		},
+		redirect: "follow", // manual, *follow, error
+		referrerPolicy: "no-referrer", // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
+		body: JSON.stringify(data), // body data type must match "Content-Type" header
+	});
+	returner=await response.json();
+	return returner;
 }
 
 function toUcWord(string) {
