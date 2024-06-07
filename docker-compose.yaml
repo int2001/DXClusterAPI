@@ -7,12 +7,13 @@ services:
     environment:
       MAXCACHE: 100	# Max Spots to cache
       WEBPORT: 8192	# Port the App should listen on for Requests (see ports here)
-      WAVELOG_URL: https://[my_wavelog_instance]/index.php/api/lookup	# Wavelog-API-Endpoint for looking up DXCC
+      WAVELOG_URL: http[s]://[my_wavelog_instance]/index.php/api/lookup	# Wavelog-API-Endpoint for looking up DXCC
       WEBURL: /t	# sub-url. e.g. if "/t" the application can be reached via "http://[ip]/t/stats" etc.
       WAVELOG_KEY: clxyz1234567	# Key from wavelog-api
       DXHOST: dxfun.com	# DNS of DXCluster upstream
       DXPORT: 8000	# Port of DXCluster upstream
       DXCALL: [my_call]	# Login-Call for Cluster
+      DXPASSWORD: [my_password]	# Login-Passwort for Cluster (in most of all cases leave this blank!!
     ports:
       - 8192:8192	# Exposed port - see WEBPORT above
     restart: unless-stopped

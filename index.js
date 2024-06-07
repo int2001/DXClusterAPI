@@ -14,7 +14,7 @@ if (process.env.WEBPORT === undefined) {
 	config = require("./config.js");
 } else {
 	config={maxcache: process.env.MAXCACHE, webport: process.env.WEBPORT, baseUrl: process.env.WEBURL, dxcc_lookup_wavelog_url: process.env.WAVELOG_URL, dxcc_lookup_wavelog_key: process.env.WAVELOG_KEY };
-	config.dxc={ host: process.env.DXHOST, port: process.env.DXPORT, loginPrompt: 'login:', call: process.env.DXCALL };
+	config.dxc={ host: process.env.DXHOST, port: process.env.DXPORT, loginPrompt: 'login:', call: process.env.DXCALL, password: process.env.DXPASSWORD };
 }
 
 morgan.token('remote-addr', function (req, res) {

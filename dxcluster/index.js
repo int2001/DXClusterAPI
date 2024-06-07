@@ -10,6 +10,7 @@ module.exports = class DXCluster extends events.EventEmitter {
     this.status = {
       connected: false,
       awaiting_login: false,
+      awaiting_password: false,
     }
     this.regex = {
       deline: /^(DX de) +([A-Z0-9/\-#]{3,}):? *(\d*.\d{1,2}) *([A-Z0-9/\-#]{3,}) +(.*\S)? +(\d{4}){1}Z *(\w{2}\d{2})?/g,
@@ -33,20 +34,29 @@ module.exports = class DXCluster extends events.EventEmitter {
       this.port = opts.port || 23
 
       this.socket = net.createConnection({
-        host: this.host || 'w6cua.no-ip.org',
+        host: this.host,
         port: this.port || 7300
       }, () => {
-        this.status.connected = this.status.awaiting_login = true
+        this.status.connected = this.status.awaiting_login = true;
+	if ((opts.password || '') !== '') { this.status.awaiting_password = true; }
         resolve(this.socket);
       })
 
-      let loginPrompt = opts.loginPrompt || 'Please enter your call:'
+      let loginPrompt = opts.loginPrompt || 'Please enter your call:';
+      let passPrompt = opts.passPrompt || 'password:';
 
       this.socket.on('data', (data) => {
         if(this.status.awaiting_login) {
           if(data.toString('utf8').indexOf(loginPrompt) != -1) {
             if(this.write(call)) {
               this.status.awaiting_login = false
+            }
+          }
+        }
+        if(this.status.awaiting_password) {
+          if(data.toString('utf8').indexOf(passPrompt) != -1) {
+            if(this.write(opts.password)) {
+              this.status.awaiting_password = false
             }
           }
         }
