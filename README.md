@@ -28,11 +28,33 @@ Open Shell (have node-js and git already installed!):
 * tools logs access.log-style to console (or logfile if pm2 is used)
 * you can restrict browser-access by editing the cors-line at index.js
 
-# Using it
-* point your Client (Browser / programm) to http://[host_where_it_is_running:port]/spots to get a list of all cached spots
-* point your Client (Browser / programm) to http://[host_where_it_is_running:port]/spots/[Band] to get a list of all cached spots at that Band. (e.g. "40m")
-* point your Client (Browser / programm) to http://[host_where_it_is_running:port]/spot/[QRG in kHz] to get the latest spot of that QRG
-* point your Client (Browser / programm) to http://[host_where_it_is_running:port]/stats] to get a small info about your cache-state
+## API Usage
+
+To interact with the DXCluster API, point your client (browser or program) to the appropriate URL, which includes the configured `baseURL`. The `baseURL` is defined in the configuration file (e.g., `/dxcache`) and must be included in all requests if configured. Below are the available endpoints:
+
+- To retrieve a list of all cached spots, use:
+  ```
+  http://[host_where_it_is_running:port][baseURL]/spots
+  ```
+
+- To retrieve all cached spots for a specific band (e.g., "40m"), use:
+  ```
+  http://[host_where_it_is_running:port][baseURL]/spots/[Band]
+  ```
+  Replace `[Band]` with the desired band, such as "40m".
+
+- To retrieve the latest spot for a specific frequency (QRG in kHz), use:
+  ```
+  http://[host_where_it_is_running:port][baseURL]/spot/[QRG_in_kHz]
+  ```
+  Replace `[QRG_in_kHz]` with the desired frequency in kilohertz (e.g., `14000` for 14 MHz).
+
+- To get basic statistics about the cache state, such as the number of entries and the freshest or oldest spot, use:
+  ```
+  http://[host_where_it_is_running:port][baseURL]/stats
+  ```
+
+Ensure that `[baseURL]` is replaced by the configured base URL (if applicable), or remove it if no base URL is configured.
 
 Sample output of /spots:
 ```
