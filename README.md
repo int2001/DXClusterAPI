@@ -17,6 +17,7 @@ How is it done: Stream DXCluster to memory and put a small REST-API on it
 Open Shell (have node-js and git already installed!):
 * `git clone https://github.com/int2001/DXClusterAPI.git`
 * change to DXClusterAPI Directory (f.ex. `cd DXClusterAPI`)
+* make master the active branch `git switch master`
 * rename `config.js.sample` to `config.js` and edit it (adjust callsign, max cached spots, port of service, Wavelog URL & API Key)
 * type `npm install`
 * start the Script f.ex. by typing `node ./index.js` or launching it within `pm2 start ./index.js`
