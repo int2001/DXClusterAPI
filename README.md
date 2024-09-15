@@ -21,7 +21,7 @@ SetUp
 1. Open a terminal and ensure Node.js and Git are installed.
 2. Clone the repository:
    ```bash
-   git clone https://github.com/int2001/DXClusterAPI.git
+   git clone https://github.com/besynnerlig/DXClusterAPI.git
    ```
 3. Navigate to the DXClusterAPI directory:
    ```bash
