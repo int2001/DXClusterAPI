@@ -29,12 +29,12 @@ app.use(cors({
 	origin: '*'
 }));
 
-conn = new DXCluster()
+var conn = new DXCluster()
 var spots=[];
 
 app.get(config.baseUrl + '/spot/:qrg', function(req, res){        // Fallback Route
 	var qrg=req.params.qrg;
-	single_spot=get_singlespot(qrg);
+	var single_spot=get_singlespot(qrg);
 	res.json(single_spot);
 	single_spot={};
 });
@@ -44,7 +44,7 @@ app.get(config.baseUrl + '/spots', function(req, res){        // Fallback Route
 });
 
 app.get(config.baseUrl + '/spots/:band', function(req, res){        // Fallback Route
-	bandspots=get_bandspots(req.params.band);
+	var bandspots=get_bandspots(req.params.band);
 	res.json(bandspots);
 	bandspots=[];
 });
@@ -237,7 +237,7 @@ async function dxcc_lookup(call) {
 			let payload={};
 			payload.key=config.dxcc_lookup_wavelog_key;
 			payload.callsign=call;
-			result=await postData(config.dxcc_lookup_wavelog_url,payload);
+			var result=await postData(config.dxcc_lookup_wavelog_url,payload);
 			payload={};
 			let returner={};
 			returner.cont=result.cont;
@@ -281,7 +281,7 @@ async function postData(url = "", data = {}) {
 		referrerPolicy: "no-referrer", // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
 		body: JSON.stringify(data), // body data type must match "Content-Type" header
 	});
-	returner=await response.json();
+	var returner=await response.json();
 	return returner;
 }
 
