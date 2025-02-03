@@ -1,6 +1,7 @@
 #!/usr/bin/env -S bun
 "use strict";
 const DXCluster = require('./dxcluster');
+const POTASpots = require('./pota');
 const express = require("express");
 const app = express()
 const path = require("path")
@@ -9,11 +10,12 @@ const morgan = require('morgan');
 const gearman = require('gearman');
 var dxcc;
 
+//Load config from file or from environment variables
 var config = {};
 if (process.env.WEBPORT === undefined) {
 	config = require("./config.js");
 } else {
-	config={maxcache: process.env.MAXCACHE, webport: process.env.WEBPORT, baseUrl: process.env.WEBURL, dxcc_lookup_wavelog_url: process.env.WAVELOG_URL, dxcc_lookup_wavelog_key: process.env.WAVELOG_KEY };
+	config={maxcache: process.env.MAXCACHE, webport: process.env.WEBPORT, baseUrl: process.env.WEBURL, dxcc_lookup_wavelog_url: process.env.WAVELOG_URL, dxcc_lookup_wavelog_key: process.env.WAVELOG_KEY, includepotaspots: process.env.POTA_INTEGRATION, potapollinterval: process.env.POTA_POLLING_INTERVAL };
 	config.dxc={ host: process.env.DXHOST, port: process.env.DXPORT, loginPrompt: 'login:', call: process.env.DXCALL, password: process.env.DXPASSWORD };
 }
 
@@ -29,6 +31,7 @@ app.use(cors({
 	origin: '*'
 }));
 
+//initialize DXCluster
 var conn = new DXCluster()
 var spots=[];
 
@@ -58,6 +61,7 @@ app.get(config.baseUrl + '/stats', function(req, res){        // Fallback Route
 	status={};
 });
 
+//reconnect DXCluster
 reconnect();
 
 conn.on('close', () => {
@@ -77,23 +81,21 @@ conn.on('error', function(ex) {
 });
 
 conn.on('spot', async function x(spot) {
-	try {
-		spot.dxcc_spotter=await dxcc_lookup(spot.spotter);
-		spot.dxcc_spotted=await dxcc_lookup(spot.spotted);
-		spot.band=qrg2band(spot.frequency*1000);
-		spots.push(spot);
-		if (spots.length>config.maxcache) {
-			spots.shift();
-		}
-		spots=reduce_spots(spots);
-	} catch(e) { 
-		console.log(spot);
-		console.log(e);
-	
-	} 
-		
-	// console.log(spot.spotted + " @ " + spot.when);
+	await handlespot(spot, false);
 })
+
+//only initialize pota component if configured
+if(config.includepotaspots || false){
+	
+	//get potapollinterval
+	let potapollinterval = config.potapollinterval || 120;
+	var pota = new POTASpots({potapollinterval: potapollinterval});
+	pota.run();
+
+	pota.on('spot', async function x(spot) {
+		await handlespot(spot, true);
+	})
+}
 
 async function main() {
 	try {
@@ -107,6 +109,51 @@ async function main() {
 }
 
 main();
+
+async function handlespot(spot, addpota = false){
+
+	try {
+
+		//construct a clean spot
+		let dxSpot = {
+			spotter: spot.spotter,
+			spotted: spot.spotted,
+			frequency: spot.frequency,
+			message: spot.message,
+			when: spot.when,		
+		}
+
+		//do DXCC lookup
+		dxSpot.dxcc_spotter=await dxcc_lookup(spot.spotter);
+		dxSpot.dxcc_spotted=await dxcc_lookup(spot.spotted);
+		
+		//add pota specific data
+		if(addpota){
+			dxSpot.dxcc_spotted["pota_ref"] = spot.additional_data.pota_ref
+			dxSpot.dxcc_spotted["pota_mode"] = spot.additional_data.pota_mode
+		}
+		
+		//lookup band
+		dxSpot.band=qrg2band(dxSpot.frequency*1000);
+		
+		//push spot to cache
+		spots.push(dxSpot);
+		
+		//empty out spots if maximum retainment is reached
+		if (spots.length>config.maxcache) {
+			spots.shift();
+		}
+
+		//reduce spots
+		spots=reduce_spots(spots);
+		
+		//Log spot
+		console.log(dxSpot);
+	} catch(e) { 
+		//console.log(dxSpot);
+		console.log(e);
+	} 
+}
 
 function get_singlespot (qrg) {
 	let ret={};
@@ -191,6 +238,8 @@ function qrg2band(Frequency) {
 		Band = "12m";
 	} else if (Frequency > 27000000 && Frequency < 30000000) {
 		Band = "10m";
+	} else if (Frequency > 40660000 && Frequency < 40690000) {
+		Band = "8m";
 	} else if (Frequency > 49000000 && Frequency < 52000000) {
 		Band = "6m";
 	} else if (Frequency > 69000000 && Frequency < 71000000) {
