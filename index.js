@@ -81,7 +81,7 @@ conn.on('error', function(ex) {
 });
 
 conn.on('spot', async function x(spot) {
-	await handlespot(spot, false);
+	await handlespot(spot, "cluster");
 })
 
 //only initialize pota component if configured
@@ -93,7 +93,7 @@ if(config.includepotaspots || false){
 	pota.run();
 
 	pota.on('spot', async function x(spot) {
-		await handlespot(spot, true);
+		await handlespot(spot, "pota");
 	})
 }
 
@@ -110,7 +110,7 @@ async function main() {
 
 main();
 
-async function handlespot(spot, addpota = false){
+async function handlespot(spot, spot_source = "cluster"){
 
 	try {
 
@@ -120,7 +120,8 @@ async function handlespot(spot, addpota = false){
 			spotted: spot.spotted,
 			frequency: spot.frequency,
 			message: spot.message,
-			when: spot.when,		
+			when: spot.when,	
+			source: spot_source,	
 		}
 
 		//do DXCC lookup
@@ -128,7 +129,7 @@ async function handlespot(spot, addpota = false){
 		dxSpot.dxcc_spotted=await dxcc_lookup(spot.spotted);
 		
 		//add pota specific data
-		if(addpota){
+		if(spot_source == "pota"){
 			dxSpot.dxcc_spotted["pota_ref"] = spot.additional_data.pota_ref
 			dxSpot.dxcc_spotted["pota_mode"] = spot.additional_data.pota_mode
 		}
