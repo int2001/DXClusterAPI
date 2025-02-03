@@ -231,7 +231,6 @@ async function dxcc_lookup(call) {
         }
 
         const result = await response.json();
-	console.log(result);
         const returner = {
             cont: result.cont,
             entity: result.dxcc ? toUcWord(result.dxcc) : '',
