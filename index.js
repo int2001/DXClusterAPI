@@ -246,7 +246,7 @@ async function dxcc_lookup(call) {
             entity: result.dxcc ? toUcWord(result.dxcc) : '',
             flag: result.dxcc_flag,
             dxcc_id: result.dxcc_id,
-            lotw_user: result.dxcc_member,
+            lotw_user: result.lotw_member,
             lat: result.dxcc_lat || null,
             lng: result.dxcc_long || null
         };
