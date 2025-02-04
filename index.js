@@ -150,6 +150,14 @@ app.get(config.baseUrl + '/spots/:band', (req, res) => {
 });
 
 /**
+ * GET /spots/:source - Retrieve all cached spots from a given source.
+ */
+app.get(config.baseUrl + '/spots/source/:source', (req, res) => {
+    const sourcespots = get_sourcespots(req.params.source);
+    res.json(sourcespots);
+});
+
+/**
  * GET /stats - Retrieve statistics about the cached spots.
  */
 app.get(config.baseUrl + '/stats', (req, res) => {
@@ -363,6 +371,15 @@ function get_singlespot(qrg) {
  */
 function get_bandspots(band) {
     return spots.filter((single) => single.band === band);
+}
+
+/**
+ * Retrieves all spots for a given source.
+ * @param {string} source - The source to search for.
+ * @returns {array} - An array of spots for the given source.
+ */
+function get_sourcespots(source) {
+    return spots.filter((single) => single.source === source);
 }
 
 /**
