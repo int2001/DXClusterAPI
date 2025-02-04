@@ -150,7 +150,7 @@ app.get(config.baseUrl + '/spots/:band', (req, res) => {
 });
 
 /**
- * GET /spots/:source - Retrieve all cached spots from a given source.
+ * GET /spots/source/:source - Retrieve all cached spots from a given source.
  */
 app.get(config.baseUrl + '/spots/source/:source', (req, res) => {
     const sourcespots = get_sourcespots(req.params.source);
