@@ -27,6 +27,7 @@ COPY --from=install /temp/prod/node_modules node_modules
 COPY --from=prerelease /usr/src/app/dxcluster/ ./dxcluster
 COPY --from=prerelease /usr/src/app/index.js .
 COPY --from=prerelease /usr/src/app/package.json .
+COPY --from=prerelease /usr/src/app/pota/ ./pota
 
 # run the app
 USER bun
