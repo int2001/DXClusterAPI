@@ -50,15 +50,15 @@ module.exports = class POTASpots extends events.EventEmitter {
         
           // build POTA spot
           let dxSpot = {
-              spotter: item.spotter,
-              spotted: item.activator,
-              frequency: item.frequency,
-              message: item.mode + (item.mode != '' ? " " : "") + "POTA @ " + item.reference + " " + item.name + " (" + item.locationDesc + ")",
-              when: new Date(),
-              additional_data: {
-                pota_ref: item.reference,
-                pota_mode: item.mode
-              }
+            spotter: item.spotter,
+            spotted: item.activator,
+            frequency: item.frequency,
+            message: item.mode + (item.mode != '' ? " " : "") + "POTA @ " + item.reference + " " + item.name + " (" + item.locationDesc + ")",
+            when: new Date(),
+            additional_data: {
+              pota_ref: item.reference,
+              pota_mode: item.mode
+            }
               
           }
 
@@ -77,9 +77,7 @@ module.exports = class POTASpots extends events.EventEmitter {
           if(isNewSpot)
           {
             this.emit('spot', dxSpot)
-          }
-          
-          
+          }          
         });
 
         //set the potacache to the current state, effectively deleting all old spots
@@ -89,8 +87,6 @@ module.exports = class POTASpots extends events.EventEmitter {
         //log error to console
         console.error('Fetch failed:', error);
       }
-
     }
-
   }
 };
