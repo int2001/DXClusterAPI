@@ -155,8 +155,8 @@ app.get(config.baseUrl + '/spots/:band', (req, res) => {
 app.get(config.baseUrl + '/stats', (req, res) => {
     const stats = {
         entries: spots.length,
-		cluster: spots.filter(item => item.source === 'cluster').length,
-		pota: spots.filter(item => item.source === 'pota').length,
+        cluster: spots.filter(item => item.source === 'cluster').length,
+        pota: spots.filter(item => item.source === 'pota').length,
         freshest: get_freshest(spots),
         oldest: get_oldest(spots)
     };
