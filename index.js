@@ -258,8 +258,6 @@ async function handlespot(spot, spot_source = "cluster"){
 		//reduce spots
 		spots=reduce_spots(spots);
 		
-		//Log spot
-		console.log(dxSpot);
 	} catch(e) { 
 		console.error("Error processing spot:", e);
 	} 
