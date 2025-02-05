@@ -322,7 +322,8 @@ async function dxcc_lookup(call) {
             dxcc_id: result.dxcc_id,
             lotw_user: result.lotw_member,
             lat: result.dxcc_lat || null,
-            lng: result.dxcc_long || null
+            lng: result.dxcc_long || null,
+	    cqz: result.dxcc_cqz || null,
         };
 
         consecutiveErrorCount = 0;  // Reset error count after a successful lookup
