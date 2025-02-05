@@ -14,6 +14,8 @@ services:
       DXPORT: 8000	# Port of DXCluster upstream
       DXCALL: [my_call]	# Login-Call for Cluster
       DXPASSWORD: [my_password]	# Login-Passwort for Cluster (in most of all cases leave this blank!!
+      POTA_INTEGRATION: false	# wether to poll POTA for spots
+      POTA_POLLING_INTERVAL: 120	# polling interval for POTA in seconds
     ports:
       - 8192:8192	# Exposed port - see WEBPORT above
     restart: unless-stopped

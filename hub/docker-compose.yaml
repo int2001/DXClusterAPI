@@ -12,6 +12,8 @@ services:
       DXHOST: dxfun.com	# DNS of DXCluster upstream
       DXPORT: 8000	# Port of DXCluster upstream
       DXCALL: [my_call]	# Login-Call for Cluster
+      POTA_INTEGRATION: false	# wether to poll POTA for spots
+      POTA_POLLING_INTERVAL: 120	# polling interval for POTA in seconds
     ports:
       - 8192:8192	# Exposed port - see WEBPORT above
     restart: unless-stopped

@@ -1,6 +1,7 @@
 #!/usr/bin/env -S bun
 "use strict";
 const DXCluster = require('./dxcluster');
+const POTASpots = require('./pota');
 const express = require("express");
 const app = express()
 const path = require("path")
@@ -9,11 +10,12 @@ const morgan = require('morgan');
 const fetch = require('node-fetch');  // Fetch for API requests
 var dxcc;
 
+//Load config from file or from environment variables
 var config = {};
 if (process.env.WEBPORT === undefined) {
 	config = require("./config.js");
 } else {
-	config={maxcache: process.env.MAXCACHE, webport: process.env.WEBPORT, baseUrl: process.env.WEBURL, dxcc_lookup_wavelog_url: process.env.WAVELOG_URL, dxcc_lookup_wavelog_key: process.env.WAVELOG_KEY };
+	config={maxcache: process.env.MAXCACHE, webport: process.env.WEBPORT, baseUrl: process.env.WEBURL, dxcc_lookup_wavelog_url: process.env.WAVELOG_URL, dxcc_lookup_wavelog_key: process.env.WAVELOG_KEY, includepotaspots: process.env.POTA_INTEGRATION, potapollinterval: process.env.POTA_POLLING_INTERVAL };
 	config.dxc={ host: process.env.DXHOST, port: process.env.DXPORT, loginPrompt: 'login:', call: process.env.DXCALL, password: process.env.DXPASSWORD };
 }
 
@@ -115,30 +117,9 @@ conn.on('error', (err) => {
 /**
  * Processes spots received from DXCluster.
  */
-conn.on('spot', async function processSpot(spot) {
-    try {
-        // Lookup DXCC data for the spotter and spotted callsigns
-        spot.dxcc_spotter = await dxcc_lookup(spot.spotter);
-        spot.dxcc_spotted = await dxcc_lookup(spot.spotted);
-
-        // Determine the band based on the frequency
-        spot.band = qrg2band(spot.frequency * 1000);
-
-        // Add spot to cache
-        spots.push(spot);
-
-        // Trim spot cache if it exceeds the maximum size
-        if (spots.length > config.maxcache) {
-            spots.shift();
-        }
-
-        // Deduplicate the spot cache
-        spots = reduce_spots(spots);
-
-    } catch (e) {
-        console.error("Error processing spot:", e);
-    }
-});
+conn.on('spot', async function x(spot) {
+	await handlespot(spot, "cluster");
+})
 
 // -----------------------------------
 // API Endpoints
@@ -169,11 +150,21 @@ app.get(config.baseUrl + '/spots/:band', (req, res) => {
 });
 
 /**
+ * GET /spots/source/:source - Retrieve all cached spots from a given source.
+ */
+app.get(config.baseUrl + '/spots/source/:source', (req, res) => {
+    const sourcespots = get_sourcespots(req.params.source);
+    res.json(sourcespots);
+});
+
+/**
  * GET /stats - Retrieve statistics about the cached spots.
  */
 app.get(config.baseUrl + '/stats', (req, res) => {
     const stats = {
         entries: spots.length,
+        cluster: spots.filter(item => item.source === 'cluster').length,
+        pota: spots.filter(item => item.source === 'pota').length,
         freshest: get_freshest(spots),
         oldest: get_oldest(spots)
     };
@@ -200,6 +191,89 @@ async function main() {
 }
 
 main();
+
+// -----------------------------------
+// POTA Spot Handling
+// -----------------------------------
+
+/**
+ * Processes spots received from POTA integration.
+ */
+
+//only initialize pota component if configured
+if(config.includepotaspots || false){
+	
+	//get potapollinterval
+	let potapollinterval = config.potapollinterval || 120;
+	var pota = new POTASpots({potapollinterval: potapollinterval});
+	pota.run();
+
+	pota.on('spot', async function x(spot) {
+		await handlespot(spot, "pota");
+	})
+}
+
+// -----------------------------------
+// General Spot Handling
+// -----------------------------------
+
+/**
+ * Processes spots received from different sources and may add additional data points
+ */
+async function handlespot(spot, spot_source = "cluster"){
+
+	try {
+
+		//construct a clean spot
+		let dxSpot = {
+			spotter: spot.spotter,
+			spotted: spot.spotted,
+			frequency: spot.frequency,
+			message: spot.message,
+			when: spot.when,	
+			source: spot_source,	
+		}
+
+		//do DXCC lookup
+		dxSpot.dxcc_spotter=await dxcc_lookup(spot.spotter);
+		dxSpot.dxcc_spotted=await dxcc_lookup(spot.spotted);
+		
+		//add pota specific data
+		if(spot_source == "pota"){
+			dxSpot.dxcc_spotted["pota_ref"] = spot.additional_data.pota_ref
+			dxSpot.dxcc_spotted["pota_mode"] = spot.additional_data.pota_mode
+		}
+		
+		//lookup band
+		dxSpot.band=qrg2band(dxSpot.frequency*1000);
+		
+		//push spot to cache
+		spots.push(dxSpot);
+		
+		//empty out spots if maximum retainment is reached
+		if (spots.length>config.maxcache) {
+			spots.shift();
+		}
+
+		//reduce spots
+		spots=reduce_spots(spots);
+		
+	} catch(e) { 
+		console.error("Error processing spot:", e);
+	} 
+}
+
+function get_singlespot (qrg) {
+	let ret={};
+	let youngest=Date.parse('1970-01-01T00:00:00.000Z');
+	spots.forEach((single) => {
+		if( (qrg*1 === single.frequency) && (Date.parse(single.when)>youngest)) {
+			ret=single;
+			youngest=Date.parse(single.when);
+		}
+	});
+	return ret;
+}
 
 // -----------------------------------
 // Helper Functions
@@ -298,6 +372,15 @@ function get_bandspots(band) {
 }
 
 /**
+ * Retrieves all spots for a given source.
+ * @param {string} source - The source to search for.
+ * @returns {array} - An array of spots for the given source.
+ */
+function get_sourcespots(source) {
+    return spots.filter((single) => single.source === source);
+}
+
+/**
  * Retrieves the most recent spot from the cache.
  * @param {array} spotobj - Array of spot objects.
  * @returns {string} - The timestamp of the most recent spot.
@@ -367,6 +450,7 @@ function qrg2band(Frequency) {
     else if (Frequency > 20000000 && Frequency < 22000000) Band = "15m";
     else if (Frequency > 23000000 && Frequency < 25000000) Band = "12m";
     else if (Frequency > 27000000 && Frequency < 30000000) Band = "10m";
+    else if (Frequency > 40660000 && Frequency < 40690000) Band = "8m";
     else if (Frequency > 49000000 && Frequency < 52000000) Band = "6m";
     else if (Frequency > 69000000 && Frequency < 71000000) Band = "4m";
     else if (Frequency > 140000000 && Frequency < 150000000) Band = "2m";
