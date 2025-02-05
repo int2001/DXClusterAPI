@@ -8,7 +8,7 @@ module.exports = class POTASpots extends events.EventEmitter {
   //constructor
   constructor(opts = {}) {
     super();
-    this.potapollinterval = opts.potapollinterval || 120; // Default to 120 seconds
+    this.potapollinterval = Math.max(30, (opts.potapollinterval || 120)); // Default to 120 seconds, 30 seconds minmum
     this.potaspotcache = [];
   }
 
