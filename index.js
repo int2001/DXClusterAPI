@@ -17,6 +17,11 @@ if (process.env.WEBPORT === undefined) {
 } else {
 	config={maxcache: process.env.MAXCACHE, webport: process.env.WEBPORT, baseUrl: process.env.WEBURL, dxcc_lookup_wavelog_url: process.env.WAVELOG_URL, dxcc_lookup_wavelog_key: process.env.WAVELOG_KEY, includepotaspots: process.env.POTA_INTEGRATION, potapollinterval: process.env.POTA_POLLING_INTERVAL };
 	config.dxc={ host: process.env.DXHOST, port: process.env.DXPORT, loginPrompt: 'login:', call: process.env.DXCALL, password: process.env.DXPASSWORD };
+	config.seconddxc = process.env.SECOND_DXCLUSTER 
+	if (config.seconddxc ||false ) {
+		config.dxc2={ host: process.env.DXHOST2, port: process.env.DXPORT2, loginPrompt: 'login:', call: process.env.DXCALL2, password: process.env.DXPASSWORD2 };
+	}
+
 }
 
 morgan.token('remote-addr', function (req, res) {
@@ -31,6 +36,7 @@ app.use(cors({ origin: '*' }));
 
 // DXCluster connection and spot cache
 let conn = new DXCluster()
+let conn2 = new DXCluster()
 let spots=[];
 
 // -----------------------------------
@@ -82,14 +88,14 @@ function toUcWord(string) {
 /**
  * Initiates a connection to the DXCluster and logs events.
  */
-function reconnect() {
-    logConnectionState('attempting', config.dxc, 'DXCluster server for receiving spots');
-    conn.connect(config.dxc)
+function reconnect(server, conf) {
+    logConnectionState('attempting', conf, 'DXCluster server for receiving spots');
+    server.connect(conf)
         .then(() => {
-            logConnectionState('connected', config.dxc, 'DXCluster server for receiving spots');
+            logConnectionState('connected', conf, 'DXCluster server for receiving spots');
         })
         .catch((err) => {
-            logConnectionState('failed', config.dxc, 'DXCluster server for receiving spots', err);
+            logConnectionState('failed', conf, 'DXCluster server for receiving spots', err);
             setTimeout(reconnect, 5000);  // Retry connection after 5 seconds
         });
 }
@@ -97,18 +103,36 @@ function reconnect() {
 // Event listeners for connection status changes
 conn.on('close', () => {
     logConnectionState('closed', config.dxc, 'DXCluster server connection closed');
-    reconnect();
+    reconnect(conn, config.dxc);
 });
 
 conn.on('timeout', () => {
     logConnectionState('timeout', config.dxc, 'DXCluster server connection timed out');
-    reconnect();
+    reconnect(conn, config.dxc);
 });
 
 conn.on('error', (err) => {
     logConnectionState('error', config.dxc, 'DXCluster server connection error', err);
-    reconnect();
+    reconnect(conn, config.dxc);
 });
+
+if (config.seconddxc || false) {
+	// Event listeners for connection status changes - conn2
+	conn2.on('close', () => {
+	    logConnectionState('closed', config.dxc2, 'DXCluster server connection closed');
+	    reconnect(conn2, config.dxc2);
+	});
+
+	conn2.on('timeout', () => {
+	    logConnectionState('timeout', config.dxc2, 'DXCluster server connection timed out');
+	    reconnect(conn2, config.dxc2);
+	});
+
+	conn2.on('error', (err) => {
+	    logConnectionState('error', config.dxc2, 'DXCluster server connection error', err);
+	    reconnect(conn2, config.dxc2);
+	});
+}
 
 // -----------------------------------
 // DXCluster Spot Handling
@@ -120,6 +144,13 @@ conn.on('error', (err) => {
 conn.on('spot', async function x(spot) {
 	await handlespot(spot, "cluster");
 })
+
+if (config.seconddxc || false) {
+	conn2.on('spot', async function x(spot) {
+		await handlespot(spot, "cluster");
+	})
+}
+
 
 // -----------------------------------
 // API Endpoints
@@ -183,7 +214,10 @@ async function main() {
         app.listen(config.webport, '0.0.0.0', () => {
             console.log(`Listener started on Port ${config.webport}`);
         });
-        reconnect();  // Start the connection to DXCluster
+        reconnect(conn, config.dxc);  // Start the connection to DXCluster
+	if (config.seconddxc || false) {
+        	reconnect(conn2, config.dxc2);  // Start the connection to DXCluster
+	}
     } catch (e) {
         console.error("Error starting server:", e);
         process.exit(99);
