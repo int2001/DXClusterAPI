@@ -16,8 +16,19 @@ if (process.env.WEBPORT === undefined) {
 	config = require("./config.js");
 } else {
 	config={maxcache: process.env.MAXCACHE, webport: process.env.WEBPORT, baseUrl: process.env.WEBURL, dxcc_lookup_wavelog_url: process.env.WAVELOG_URL, dxcc_lookup_wavelog_key: process.env.WAVELOG_KEY, includepotaspots: process.env.POTA_INTEGRATION, potapollinterval: process.env.POTA_POLLING_INTERVAL };
-	config.dxc={ host: process.env.DXHOST, port: process.env.DXPORT, loginPrompt: 'login:', call: process.env.DXCALL, password: process.env.DXPASSWORD };
+	config.clusters=JSON.parse(process.env.CLUSTERS || '[]');
+	config.dxc={  host: process.env.DXHOST, port: process.env.DXPORT, loginPrompt: 'login:', call: process.env.DXCALL, password: process.env.DXPASSWORD };
 }
+
+let clusters = [];
+if (config.clusters.length>0) {
+    // New format: host:port,host:port,host:port
+    clusters = config.clusters;
+    } else {
+    // Old format: single cluster via CLUSTER_HOST/CLUSTER_PORT
+    clusters[0] = config.dxc;
+}
+
 
 morgan.token('remote-addr', function (req, res) {
         var ffHeaderValue = req.headers['x-forwarded-for'];
@@ -30,8 +41,8 @@ app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:htt
 app.use(cors({ origin: '*' }));
 
 // DXCluster connection and spot cache
-let conn = new DXCluster()
 let spots=[];
+
 
 // -----------------------------------
 // Utility Functions
@@ -82,45 +93,55 @@ function toUcWord(string) {
 /**
  * Initiates a connection to the DXCluster and logs events.
  */
+
 function reconnect() {
-    logConnectionState('attempting', config.dxc, 'DXCluster server for receiving spots');
-    conn.connect(config.dxc)
-        .then(() => {
-            logConnectionState('connected', config.dxc, 'DXCluster server for receiving spots');
-        })
-        .catch((err) => {
-            logConnectionState('failed', config.dxc, 'DXCluster server for receiving spots', err);
-            setTimeout(reconnect, 5000);  // Retry connection after 5 seconds
-        });
+	function conn_one(cluster) {
+		logConnectionState('attempting', cluster.host, 'DXCluster server for receiving spots');
+		const conn = new DXCluster();
+		try {
+			conn.connect(cluster).then(() => {
+				logConnectionState('connected', cluster.host, 'DXCluster server for receiving spots');
+			})
+			.catch((err) => {
+				logConnectionState('failed', cluster.host, 'DXCluster server for receiving spots', err);
+				conn_one(cluster);
+			});
+
+			// Event listeners for connection status changes
+			conn.on('close', () => {
+				logConnectionState('closed', cluster.host, 'DXCluster server connection closed');
+				conn_one(cluster);
+			});
+
+			conn.on('timeout', () => {
+				logConnectionState('timeout', cluster.host, 'DXCluster server connection timed out');
+				conn_one(cluster);
+			});
+
+			conn.on('error', (err) => {
+				logConnectionState('error', cluster.host, 'DXCluster server connection error', err);
+				conn_one(cluster);
+			});
+			// -----------------------------------
+			// DXCluster Spot Handling
+			// -----------------------------------
+
+			/**
+			 * Processes spots received from DXCluster.
+			 */
+			conn.on('spot', async function x(spot) {
+				await handlespot(spot, cluster.host);
+			});
+		} catch (e) {
+			logConnectionState('error', config.host, 'DXCluster not reachable ');
+			console.log(e);
+		}
+	}
+
+	clusters.forEach(cluster => {
+		conn_one(cluster);
+	});
 }
-
-// Event listeners for connection status changes
-conn.on('close', () => {
-    logConnectionState('closed', config.dxc, 'DXCluster server connection closed');
-    reconnect();
-});
-
-conn.on('timeout', () => {
-    logConnectionState('timeout', config.dxc, 'DXCluster server connection timed out');
-    reconnect();
-});
-
-conn.on('error', (err) => {
-    logConnectionState('error', config.dxc, 'DXCluster server connection error', err);
-    reconnect();
-});
-
-// -----------------------------------
-// DXCluster Spot Handling
-// -----------------------------------
-
-/**
- * Processes spots received from DXCluster.
- */
-conn.on('spot', async function x(spot) {
-	await handlespot(spot, "cluster");
-})
-
 // -----------------------------------
 // API Endpoints
 // -----------------------------------
