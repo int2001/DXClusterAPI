@@ -130,7 +130,7 @@ function reconnect() {
 			 * Processes spots received from DXCluster.
 			 */
 			conn.on('spot', async function x(spot) {
-				await handlespot(spot, cluster.host);
+				await handlespot(spot, (cluster.cluster || 'cluster'));
 			});
 		} catch (e) {
 			logConnectionState('error', config.host, 'DXCluster not reachable ');
