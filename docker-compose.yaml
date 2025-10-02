@@ -14,6 +14,8 @@ services:
       DXPORT: 8000	# Port of DXCluster upstream
       DXCALL: [my_call]	# Login-Call for Cluster
       DXPASSWORD: [my_password]	# Login-Passwort for Cluster (in most of all cases leave this blank!!
+      # If CLUSTERS is filled / present, it overrides the above DX-Parameters. The "cluster"-parameter is optional. if not set, or set to the same value, the last spot will be taken. if different: multiple spots on same QRG are displayed. Please check carefully the JSON-Syntax here!
+      CLUSTERS: '[{ "host": "dxfun.com", "port": 8000, "call":"[mycall]", "loginPrompt": "login", "cluster":"DXCluster" }, { "host": "cluster.sota.org.uk", "port": 7300, "call":"[mycall]", "loginPrompt": "login","cluster":"DXCluster" }]'
       POTA_INTEGRATION: false	# wether to poll POTA for spots
       POTA_POLLING_INTERVAL: 120	# polling interval for POTA in seconds
     ports:
