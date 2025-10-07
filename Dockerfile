@@ -28,6 +28,7 @@ COPY --from=prerelease /usr/src/app/dxcluster/ ./dxcluster
 COPY --from=prerelease /usr/src/app/index.js .
 COPY --from=prerelease /usr/src/app/package.json .
 COPY --from=prerelease /usr/src/app/pota/ ./pota
+COPY --from=prerelease /usr/src/app/public/ ./public
 
 # run the app
 USER bun
