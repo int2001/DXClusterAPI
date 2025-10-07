@@ -8,6 +8,7 @@ const path = require("path")
 const cors = require('cors');
 const morgan = require('morgan');
 const fetch = require('node-fetch');  // Fetch for API requests
+const WebSocket = require('ws');  // WebSocket server
 var dxcc;
 
 //Load config from file or from environment variables
@@ -40,6 +41,9 @@ app.use(express.json());
 app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" :response-time ms'));
 app.use(cors({ origin: '*' }));
 
+// Serve static files (for demo page)
+app.use(config.baseUrl + '/demo', express.static(path.join(__dirname, 'public')));
+
 // DXCluster connection and spot cache
 let spots=[];
 
@@ -47,6 +51,32 @@ let spots=[];
 const bandIndex = new Map();  // Map<band, Set<spot>>
 const frequencyIndex = new Map();  // Map<frequency, spot>
 const sourceIndex = new Map();  // Map<source, Set<spot>>
+
+// WebSocket clients
+const wsClients = new Set();
+
+/**
+ * Broadcasts a new spot to all connected WebSocket clients
+ */
+function broadcastSpot(spot) {
+    if (wsClients.size === 0) return;
+
+    const message = JSON.stringify({
+        type: 'spot',
+        data: spot
+    });
+
+    wsClients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            try {
+                client.send(message);
+            } catch (error) {
+                console.error('Error sending to WebSocket client:', error);
+                wsClients.delete(client);
+            }
+        }
+    });
+}
 
 
 // -----------------------------------
@@ -206,9 +236,29 @@ app.get(config.baseUrl + '/stats', (req, res) => {
  */
 async function main() {
     try {
-        app.listen(config.webport, '0.0.0.0', () => {
+        const server = app.listen(config.webport, '0.0.0.0', () => {
             console.log(`Listener started on Port ${config.webport}`);
         });
+
+        // Create WebSocket server
+        const wss = new WebSocket.Server({ server });
+
+        wss.on('connection', (ws) => {
+            console.log('New WebSocket client connected');
+            wsClients.add(ws);
+
+            ws.on('close', () => {
+                console.log('WebSocket client disconnected');
+                wsClients.delete(ws);
+            });
+
+            ws.on('error', (error) => {
+                console.error('WebSocket error:', error);
+                wsClients.delete(ws);
+            });
+        });
+
+        console.log(`WebSocket server started on Port ${config.webport}`);
         reconnect();  // Start the connection to DXCluster
     } catch (e) {
         console.error("Error starting server:", e);
@@ -278,6 +328,9 @@ async function handlespot(spot, spot_source = "cluster"){
 
 		// Update indexes
 		updateIndexes(dxSpot);
+
+		// Broadcast to WebSocket clients
+		broadcastSpot(dxSpot);
 
 		//empty out spots if maximum retainment is reached
 		if (spots.length>config.maxcache) {
