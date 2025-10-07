@@ -43,6 +43,11 @@ app.use(cors({ origin: '*' }));
 // DXCluster connection and spot cache
 let spots=[];
 
+// Indexes for faster lookups
+const bandIndex = new Map();  // Map<band, Set<spot>>
+const frequencyIndex = new Map();  // Map<frequency, spot>
+const sourceIndex = new Map();  // Map<source, Set<spot>>
+
 
 // -----------------------------------
 // Utility Functions
@@ -267,21 +272,101 @@ async function handlespot(spot, spot_source = "cluster"){
 		
 		//lookup band
 		dxSpot.band=qrg2band(dxSpot.frequency*1000);
-		
+
 		//push spot to cache
 		spots.push(dxSpot);
-		
+
+		// Update indexes
+		updateIndexes(dxSpot);
+
 		//empty out spots if maximum retainment is reached
 		if (spots.length>config.maxcache) {
-			spots.shift();
+			const removed = spots.shift();
+			removeFromIndexes(removed);
 		}
 
 		//reduce spots
+		const oldLength = spots.length;
 		spots=reduce_spots(spots);
+
+		// If spots were reduced, rebuild indexes
+		if (spots.length !== oldLength) {
+			rebuildIndexes();
+		}
 		
 	} catch(e) { 
 		console.error("Error processing spot:", e);
 	} 
+}
+
+// -----------------------------------
+// Index Management Functions
+// -----------------------------------
+
+/**
+ * Updates all indexes when a new spot is added
+ */
+function updateIndexes(spot) {
+    // Update band index
+    if (spot.band) {
+        if (!bandIndex.has(spot.band)) {
+            bandIndex.set(spot.band, new Set());
+        }
+        bandIndex.get(spot.band).add(spot);
+    }
+
+    // Update frequency index (keep only latest spot per frequency)
+    const existing = frequencyIndex.get(spot.frequency);
+    if (!existing || Date.parse(spot.when) > Date.parse(existing.when)) {
+        frequencyIndex.set(spot.frequency, spot);
+    }
+
+    // Update source index
+    if (spot.source) {
+        if (!sourceIndex.has(spot.source)) {
+            sourceIndex.set(spot.source, new Set());
+        }
+        sourceIndex.get(spot.source).add(spot);
+    }
+}
+
+/**
+ * Removes a spot from all indexes
+ */
+function removeFromIndexes(spot) {
+    if (!spot) return;
+
+    // Remove from band index
+    if (spot.band && bandIndex.has(spot.band)) {
+        bandIndex.get(spot.band).delete(spot);
+        if (bandIndex.get(spot.band).size === 0) {
+            bandIndex.delete(spot.band);
+        }
+    }
+
+    // Remove from frequency index if this is the current spot
+    if (frequencyIndex.get(spot.frequency) === spot) {
+        frequencyIndex.delete(spot.frequency);
+    }
+
+    // Remove from source index
+    if (spot.source && sourceIndex.has(spot.source)) {
+        sourceIndex.get(spot.source).delete(spot);
+        if (sourceIndex.get(spot.source).size === 0) {
+            sourceIndex.delete(spot.source);
+        }
+    }
+}
+
+/**
+ * Rebuilds all indexes from scratch
+ */
+function rebuildIndexes() {
+    bandIndex.clear();
+    frequencyIndex.clear();
+    sourceIndex.clear();
+
+    spots.forEach(spot => updateIndexes(spot));
 }
 
 function get_singlespot (qrg) {
@@ -304,7 +389,22 @@ let consecutiveErrorCount = 0;
 const dxccServer = config.dxcc_lookup_wavelog_url;  // The WaveLog server
 let abortController = null;  // For aborting ongoing requests
 
+// DXCC cache: Map<callsign, {data, timestamp}>
+const dxccCache = new Map();
+const DXCC_CACHE_TTL = 24 * 60 * 60 * 1000;  // 24 hours in milliseconds
+
 async function dxcc_lookup(call) {
+    // Check cache first
+    const cached = dxccCache.get(call);
+    if (cached) {
+        const age = Date.now() - cached.timestamp;
+        if (age < DXCC_CACHE_TTL) {
+            return cached.data;
+        } else {
+            // Expired, remove from cache
+            dxccCache.delete(call);
+        }
+    }
     let timeoutId = null;  // Initialize timeoutId to null
 
     try {
@@ -347,6 +447,12 @@ async function dxcc_lookup(call) {
 	    cqz: result.dxcc_cqz || null,
         };
 
+        // Cache the result
+        dxccCache.set(call, {
+            data: returner,
+            timestamp: Date.now()
+        });
+
         consecutiveErrorCount = 0;  // Reset error count after a successful lookup
         abortController = null;  // Clear the abort controller after success
         return returner;
@@ -373,15 +479,9 @@ async function dxcc_lookup(call) {
  * @returns {object} - The latest spot for the given frequency.
  */
 function get_singlespot(qrg) {
-    let ret = {};
-    let youngest = Date.parse('1970-01-01T00:00:00.000Z');
-    spots.forEach((single) => {
-        if ((qrg * 1 === single.frequency) && (Date.parse(single.when) > youngest)) {
-            ret = single;
-            youngest = Date.parse(single.when);
-        }
-    });
-    return ret;
+    // Use frequency index for O(1) lookup
+    const spot = frequencyIndex.get(qrg * 1);
+    return spot || {};
 }
 
 /**
@@ -390,7 +490,9 @@ function get_singlespot(qrg) {
  * @returns {array} - An array of spots for the given band.
  */
 function get_bandspots(band) {
-    return spots.filter((single) => single.band === band);
+    // Use band index for O(1) lookup
+    const spotSet = bandIndex.get(band);
+    return spotSet ? Array.from(spotSet) : [];
 }
 
 /**
@@ -399,7 +501,9 @@ function get_bandspots(band) {
  * @returns {array} - An array of spots for the given source.
  */
 function get_sourcespots(source) {
-    return spots.filter((single) => single.source === source);
+    // Use source index for O(1) lookup
+    const spotSet = sourceIndex.get(source);
+    return spotSet ? Array.from(spotSet) : [];
 }
 
 /**
@@ -438,22 +542,31 @@ function get_oldest(spotobj) {
  * @returns {array} - Deduplicated array of spots.
  */
 function reduce_spots(spotobject) {
-    let unique = [];
+    // Use a Map to track the latest spot for each unique combination
+    // Key: spotted_continent_frequency, Value: spot object
+    const latestSpots = new Map();
+
     spotobject.forEach((single) => {
-        if (
-            single.dxcc_spotter &&  // Ensure dxcc_spotter exists
-            single.dxcc_spotted &&  // Ensure dxcc_spotted exists
-            !spotobject.find((item) =>
-                item.spotted === single.spotted &&
-                item.dxcc_spotter && item.dxcc_spotter.cont === single.dxcc_spotter.cont &&
-                item.frequency === single.frequency &&
-                Date.parse(item.when) > Date.parse(single.when)
-            )
-        ) {
-            unique.push(single);
+        // Skip spots without required DXCC data
+        if (!single.dxcc_spotter || !single.dxcc_spotted) {
+            return;
+        }
+
+        // Create unique key for deduplication
+        const key = `${single.spotted}_${single.dxcc_spotter.cont}_${single.frequency}`;
+        const timestamp = Date.parse(single.when);
+
+        // Check if we already have a spot with this key
+        const existing = latestSpots.get(key);
+
+        // Keep this spot if it's newer or if no existing spot
+        if (!existing || timestamp > Date.parse(existing.when)) {
+            latestSpots.set(key, single);
         }
     });
-    return unique;
+
+    // Convert Map values back to array
+    return Array.from(latestSpots.values());
 }
 
 /**
