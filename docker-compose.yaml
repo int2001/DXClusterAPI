@@ -1,23 +1,18 @@
-version: '3'
+version: '3.8'
+
 services:
-  dxcache:
+  dxcluster:
     build:
+      context: .
       dockerfile: ./Dockerfile
-    container_name: dxcache
-    environment:
-      MAXCACHE: 100	# Max Spots to cache
-      WEBPORT: 8192	# Port the App should listen on for Requests (see ports here)
-      WAVELOG_URL: http[s]://[my_wavelog_instance]/index.php/api/lookup	# Wavelog-API-Endpoint for looking up DXCC
-      WEBURL: /t	# sub-url. e.g. if "/t" the application can be reached via "http://[ip]/t/stats" etc.
-      WAVELOG_KEY: clxyz1234567	# Key from wavelog-api
-      DXHOST: dxfun.com	# DNS of DXCluster upstream
-      DXPORT: 8000	# Port of DXCluster upstream
-      DXCALL: [my_call]	# Login-Call for Cluster
-      DXPASSWORD: [my_password]	# Login-Passwort for Cluster (in most of all cases leave this blank!!
-      # If CLUSTERS is filled / present, it overrides the above DX-Parameters. The "cluster"-parameter is optional. if not set, or set to the same value, the last spot will be taken. if different: multiple spots on same QRG are displayed. Please check carefully the JSON-Syntax here!
-      CLUSTERS: '[{ "host": "dxfun.com", "port": 8000, "call":"[mycall]", "loginPrompt": "login", "cluster":"DXCluster" }, { "host": "cluster.sota.org.uk", "port": 7300, "call":"[mycall]", "loginPrompt": "login","cluster":"DXCluster" }]'
-      POTA_INTEGRATION: false	# wether to poll POTA for spots
-      POTA_POLLING_INTERVAL: 120	# polling interval for POTA in seconds
+    container_name: dxcluster
+    env_file:
+      - .env    # Load all configuration from .env file
     ports:
-      - 8192:8192	# Exposed port - see WEBPORT above
+      - "${WEBPORT:-3000}:${WEBPORT:-3000}"    # Port mapping from .env
+    volumes:
+      - ./logs:/usr/src/app/logs    # Persist logs outside container
+      - ./data:/usr/src/app/data    # Persist analytics and data outside container
     restart: unless-stopped
+    environment:
+      MODE: docker    # Override to ensure Docker mode

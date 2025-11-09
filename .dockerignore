@@ -1,4 +1,97 @@
+# ================================================================
+# DXClusterAPI .dockerignore
+# ================================================================
+# Excludes files from Docker build context for faster builds
+
+# Git and GitHub
+.git/
+.github/
+.gitignore
+.gitattributes
+*.gitkeep
+
+# Docker files (no need to copy into image)
 Dockerfile
-.git
-.github
-config*
+docker-compose.yaml
+docker-compose*.yaml
+.dockerignore
+
+# Configuration examples (not needed in container)
+.env.sample
+.env.local
+.env.*.local
+config.js.example
+.htaccess.example
+
+# Documentation
+*.md
+docs/
+
+# Logs (volume mounted, don't copy into image)
+logs/
+*.log
+
+# Data directory (volume mounted if needed)
+data/
+
+# Temporary directories
+tmp/
+temp/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+.*.swp
+*.swo
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# Dependencies (will be installed during build)
+node_modules/
+
+# Lock files (package-lock.json generated during build)
+package-lock.json
+yarn.lock
+
+# Test files
+test/
+tests/
+*.test.js
+*.spec.js
+coverage/
+.nyc_output/
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+azure-pipelines.yml
+.circleci/
+
+# Temporary and backup files
+*.tmp
+*.bak
+*.cache
+*.old
+*~
+
+# Build artifacts
+dist/
+build/
+*.tgz
+
+# Passenger specific (not used in Docker)
+.passenger/
+passenger.*.log
+.htaccess
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+

@@ -1,6 +1,64 @@
+# ================================================================
+# DXClusterAPI .gitignore
+# ================================================================
+
+# Dependencies
 node_modules/
-data/cty.xml
 package-lock.json
-.*.swp
-config.js
 yarn.lock
+
+# Configuration files (use .env.sample as template)
+.env
+.env.local
+.env.*.local
+config.js
+
+# Logs (keep directory structure but ignore log files)
+logs/
+*.log
+
+# Data files (generated at runtime)
+data/
+tmp/
+
+# Editor files
+.*.swp
+*.swp
+.vscode/
+.idea/
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# Build artifacts
+dist/
+build/
+*.tgz
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+.temp/
+
+# Passenger
+.passenger/
+passenger.*.log
+
+# Apache
+.htaccess
+

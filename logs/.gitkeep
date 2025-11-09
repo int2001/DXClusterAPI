@@ -1,0 +1,4 @@
+# Placeholder to ensure logs/ directory is created
+# Log files are automatically generated here when FILE_LOGGING_ENABLED=true
+# Format: app-YYYYMMDD.log (e.g., app-20251109.log)
+# Old logs are automatically deleted based on LOG_RETENTION_DAYS setting

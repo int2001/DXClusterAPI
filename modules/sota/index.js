@@ -1,0 +1,119 @@
+/**
+ * Summits On The Air (SOTA) Module
+ * Polls SOTA API for real-time summit activation spots
+ * 
+ * @module sota
+ */
+
+"use strict";
+
+const events = require("events");
+const { sleepNow, getAllowedDeviation, toKHz } = require('../../lib/utils');
+
+// Prefer global fetch (Node 18+) or fall back to node-fetch
+const fetch = (global.fetch ? global.fetch : require("node-fetch"));
+
+module.exports = class SOTASpots extends events.EventEmitter {
+  constructor(opts = {}) {
+    super();
+    this.sotapollinterval = Math.max(30, Number(opts.sotapollinterval || 120)); // seconds
+    this.sotaspotcache = [];
+    this.apiUrl = "https://api2.sota.org.uk/api/spots/25/all";
+  }
+
+  /**
+   * Start polling loop
+   */
+  async run(opts = {}) {
+    while (true) {
+      // wait between polls
+      await sleepNow(this.sotapollinterval * 1000);
+
+      try {
+        // 10s timeout with AbortController
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 10000);
+
+        const res = await fetch(this.apiUrl, { signal: controller.signal });
+        clearTimeout(t);
+
+        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+
+        /** @type {Array} */
+        const rawspots = await res.json();
+        
+        // Safety: Validate response is array
+        if (!Array.isArray(rawspots)) {
+          console.warn('[SOTA] Invalid API response: not an array');
+          continue;
+        }
+
+        const current = [];
+        for (const item of rawspots) {
+          // Safety: Validate item is object with required fields
+          if (!item || typeof item !== 'object') continue;
+          if (!item.callsign || !item.activatorCallsign || !item.frequency) continue;
+          
+          // Safety: Validate callsigns
+          const callsignRegex = /^[A-Z0-9\/\-]{3,20}$/i;
+          const spotter = String(item.callsign || '').trim().substring(0, 20);
+          const spotted = String(item.activatorCallsign || '').trim().substring(0, 20);
+          if (!callsignRegex.test(spotter) || !callsignRegex.test(spotted)) continue;
+          
+          // Safety: Sanitize text fields
+          const mode = String(item.mode || '').replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim().substring(0, 20);
+          const assoc = String(item.associationCode || '').replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim().substring(0, 10);
+          const summit = String(item.summitCode || '').replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim().substring(0, 20);
+          const summitDetails = String(item.summitDetails || '').replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim().substring(0, 100);
+          const comments = String(item.comments || '').replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim().substring(0, 200);
+
+          // SOTA API provides MHz strings like "10.111"
+          const freqKHz = toKHz(item.frequency);
+
+          // Safety: Validate frequency range (30 kHz to 300 GHz)
+          if (!Number.isFinite(freqKHz) || freqKHz < 30 || freqKHz > 300000000) continue;
+
+          // Safety: Validate and sanitize timestamp
+          const ts = String(item.timeStamp || '').trim();
+          if (!ts) continue;
+          const when = ts.endsWith('Z') ? new Date(ts) : new Date(ts + 'Z');
+          if (isNaN(when.getTime())) continue; // Invalid date
+
+          const msg =
+            (mode ? mode + " " : "") +
+            (assoc && summit ? `${assoc}/${summit}` : `${assoc}${summit}`) +
+            (summitDetails ? " " + summitDetails : "") +
+            (comments ? " (" + comments + ")" : "");
+
+          const dxSpot = {
+            spotter,
+            spotted,
+            frequency: freqKHz,              // kHz to match your POTA emitter
+            message: msg,
+            when: when,  // ISO timestamp from SOTA
+            additional_data: {
+              sota_ref: (assoc && summit) ? `${assoc}/${summit}` : (assoc || summit || ""),
+              sota_mode: mode
+            }
+          };
+
+          current.push(dxSpot);
+
+          // dedupe against previous cycle with kHz tolerance
+          const isNew = !this.sotaspotcache.some((s) =>
+            s.spotted === dxSpot.spotted &&
+            Math.abs(Number(s.frequency) - dxSpot.frequency) <= getAllowedDeviation(mode) &&
+            s.message === dxSpot.message
+          );
+
+          if (isNew) this.emit("spot", dxSpot);
+        }
+
+        // Replace cache with the latest snapshot
+        this.sotaspotcache = current;
+      } catch (err) {
+        console.error("SOTA fetch failed:", err && err.stack ? err.stack : err);
+      }
+    }
+  }
+};

@@ -1,0 +1,199 @@
+# ================================================================
+# Phusion Passenger Configuration for Apache
+# ================================================================
+# This file provides an example configuration for running
+# DXClusterAPI with Phusion Passenger on shared hosting
+#
+# USAGE:
+# 1. Copy this file to .htaccess in your application directory
+# 2. Adjust the paths to match your hosting setup
+# 3. Create a .env file with MODE=passenger
+# 4. Ensure Node.js v18+ is available on your hosting
+# 5. Run: npm install (or bun install)
+# 6. Restart: mkdir -p tmp && touch tmp/restart.txt
+# ================================================================
+
+# Enable Passenger
+PassengerEnabled on
+
+# Set the Node.js version (adjust to your hosting's available version)
+# Examples:
+#   PassengerNodejs /usr/bin/node
+#   PassengerNodejs /usr/local/bin/node20
+#   PassengerNodejs ~/.nvm/versions/node/v20.11.0/bin/node
+PassengerNodejs /usr/bin/node
+
+# Set the application root (where index.js and app.js are located)
+# This should point to the directory containing your application
+PassengerAppRoot /home/yourusername/dxclusterapi
+
+# Set the startup file (entry point)
+PassengerStartupFile index.js
+
+# Application type
+PassengerAppType node
+
+# Environment (production recommended)
+PassengerAppEnv production
+
+# Enable automatic application restarts
+PassengerRestartDir /home/yourusername/dxclusterapi/tmp
+
+# ================================================================
+# URL Rewriting (if running in subdirectory)
+# ================================================================
+# Uncomment if you want to run the app at a subdirectory like /dxapi
+# Make sure BASEURL in .env matches the subdirectory
+
+# RewriteEngine On
+# RewriteBase /dxapi
+# RewriteCond %{REQUEST_FILENAME} !-f
+# RewriteCond %{REQUEST_FILENAME} !-d
+# RewriteRule ^(.*)$ /dxapi/$1 [L]
+
+# ================================================================
+# CORS Headers (if needed for cross-origin requests)
+# ================================================================
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type"
+</IfModule>
+
+# ================================================================
+# Error Pages
+# ================================================================
+# ErrorDocument 500 /error500.html
+# ErrorDocument 404 /error404.html
+
+# ================================================================
+# Memory and Performance Settings
+# ================================================================
+# Adjust based on your hosting plan's limits
+PassengerMaxPoolSize 2
+PassengerMinInstances 1
+PassengerMaxInstancesPerApp 2
+
+# Memory limit per process (adjust based on hosting limits)
+# PassengerMemoryLimit 512
+
+# Spawn method (smart spawning for better memory efficiency)
+PassengerSpawnMethod smart
+
+# ================================================================
+# Application Configuration via .env
+# ================================================================
+# Make sure your .env file contains:
+#   MODE=passenger
+#   WEBPORT=3000              (Passenger will override with its own port)
+#   WEBSOCKET_ENABLED=false   (Most shared hosts don't support WebSockets)
+#   TRUST_PROXY=true          (Required for correct IP detection)
+#   API_V1_ENABLED=true
+#   API_V2_ENABLED=true
+#   POTA_ENABLED=true
+#   SOTA_ENABLED=true
+#   RBN_ENABLED=true
+#   RBN_CALLSIGN=YOUR_CALL
+#   ENRICHMENT_ENABLED=true
+#   MODE_CLASSIFIER_ENABLED=true
+#   ANALYTICS_ENABLED=true
+#   DEMO_ENABLED=true
+#   FILE_LOGGING_ENABLED=true
+#   
+# See .env.sample for all available options
+
+# ================================================================
+# Logging
+# ================================================================
+# Passenger logs: ~/passenger.log (or check hosting documentation)
+# Application logs: logs/ directory (configured in .env)
+# To enable debug logging:
+#   PassengerLogLevel 3
+
+# ================================================================
+# Security
+# ================================================================
+# Disable directory browsing
+Options -Indexes
+
+# Protect sensitive files
+<FilesMatch "^\.env">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "^config\.js$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# ================================================================
+# NOTES FOR SHARED HOSTING
+# ================================================================
+# 1. WebSocket support may be limited on shared hosting
+#    Set WEBSOCKET_ENABLED=false in your .env file
+#
+# 2. Ensure your hosting supports:
+#    - Node.js v18 or higher (v20+ recommended)
+#    - Phusion Passenger 5.0+
+#    - Sufficient memory (at least 512MB recommended, 1GB+ ideal)
+#    - Outbound connections on ports 7000, 7001 (for RBN)
+#    - Outbound HTTPS for POTA/SOTA/DXCC APIs
+#
+# 3. Recommended directory structure:
+#    /home/yourusername/dxclusterapi/
+#    ├── index.js                (entry point)
+#    ├── app.js                  (main application)
+#    ├── package.json
+#    ├── .env                    (MODE=passenger)
+#    ├── .htaccess               (this file)
+#    ├── lib/                    (shared libraries)
+#    │   ├── dxcluster.js        (DX cluster connection class)
+#    │   └── utils.js            (utility functions)
+#    ├── modules/
+#    │   ├── pota/
+#    │   ├── sota/
+#    │   ├── rbn/
+#    │   ├── clusters/
+#    │   ├── enrichment/
+#    │   ├── modeclassifier/
+#    │   ├── apiv1/
+#    │   ├── apiv2/
+#    │   ├── analytics/
+#    │   ├── metrics/
+#    │   └── rate-limiter/
+#    ├── public/
+#    │   ├── index.html          (demo page)
+#    │   ├── test.html           (test suite)
+#    │   └── robots.txt
+#    ├── logs/                   (auto-created, writable)
+#    ├── data/                   (auto-created, writable)
+#    └── tmp/                    (for restart.txt)
+#
+# 4. Installation steps:
+#    a) Upload all files to ~/dxclusterapi/
+#    b) Copy .env.sample to .env and configure
+#    c) Copy .htaccess.example to .htaccess and adjust paths
+#    d) Run: npm install (or bun install if available)
+#    e) Ensure logs/ and data/ directories are writable
+#    f) Restart: mkdir -p tmp && touch tmp/restart.txt
+#    g) Check logs: tail -f logs/app-*.log
+#
+# 5. Common hosting providers and Node.js paths:
+#    - Namecheap: /usr/local/bin/node
+#    - DreamHost: /usr/bin/node
+#    - HostGator: ~/.nvm/versions/node/vX.X.X/bin/node
+#    - A2 Hosting: /opt/alt/alt-nodejs20/root/usr/bin/node
+#    Check your hosting's documentation or run: which node
+#
+# 6. To restart your application:
+#    touch tmp/restart.txt
+#
+# 7. Troubleshooting:
+#    - Check ~/passenger.log for Passenger errors
+#    - Check logs/app-*.log for application errors
+#    - Verify Node.js version: node --version (should be v18+)
+#    - Test DXCC lookup API connectivity
+#    - Ensure .env file has correct MODE=passenger
+#    - Verify file permissions (755 for directories, 644 for files)
+# ================================================================

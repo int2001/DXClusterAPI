@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DXClusterAPI - Endpoint Test Suite</title>
+    
+    <!-- Prevent caching -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <!-- Prevent search engine indexing and crawling -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+    <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+    <meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 14px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #44ff44;
+        }
+
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .input-group label {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .input-group input {
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-card h3 {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card p {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: #212529;
+        }
+
+        .module-section {
+            margin-bottom: 30px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .module-header {
+            background: #495057;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .module-header:hover {
+            background: #3d4349;
+        }
+
+        .module-header h2 {
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .module-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-enabled {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-disabled {
+            background: #dc3545;
+            color: white;
+        }
+
+        .status-skipped {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .module-body {
+            padding: 20px;
+        }
+
+        .endpoint-test {
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .endpoint-header {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .endpoint-method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 0.85em;
+            margin-right: 10px;
+        }
+
+        .method-get {
+            background: #28a745;
+            color: white;
+        }
+
+        .method-post {
+            background: #007bff;
+            color: white;
+        }
+
+        .endpoint-url {
+            font-family: 'Courier New', monospace;
+            color: #495057;
+            font-size: 0.95em;
+        }
+
+        .endpoint-body {
+            padding: 15px;
+            background: white;
+        }
+
+        .request-section, .response-section {
+            margin-bottom: 15px;
+        }
+
+        .section-title {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .response-success {
+            border-left: 4px solid #28a745;
+        }
+
+        .response-error {
+            border-left: 4px solid #dc3545;
+        }
+
+        .response-pending {
+            border-left: 4px solid #ffc107;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-success { background: #28a745; }
+        .status-error { background: #dc3545; }
+        .status-pending { background: #ffc107; }
+        .status-idle { background: #6c757d; }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .collapse-icon {
+            transition: transform 0.3s;
+        }
+
+        .collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .timestamp {
+            font-size: 0.85em;
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        .http-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.85em;
+            margin-left: 8px;
+        }
+
+        .status-2xx { background: #d4edda; color: #155724; }
+        .status-3xx { background: #d1ecf1; color: #0c5460; }
+        .status-4xx { background: #fff3cd; color: #856404; }
+        .status-5xx { background: #f8d7da; color: #721c24; }
+
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 DXClusterAPI Test Suite</h1>
+            <div class="header-info">
+                <div class="status">
+                    <span class="status-indicator"></span>
+                    <span id="testStatus">Ready</span>
+                </div>
+                <span id="apiVersion">v2.0.0</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" onclick="runAllTests()">
+                <span>▶</span> Run All Tests
+            </button>
+            <button class="btn btn-secondary" onclick="clearAllResults()">
+                <span>🗑</span> Clear Results
+            </button>
+            <button class="btn btn-success" onclick="exportResults()">
+                <span>💾</span> Export Results
+            </button>
+            <div class="input-group">
+                <label>API Key (v2):</label>
+                <input type="text" id="apiKey" placeholder="Optional - for API v2 auth">
+            </div>
+            <div class="input-group">
+                <label>Client ID:</label>
+                <input type="text" id="clientId" placeholder="Optional - for client tracking">
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="stats">
+                <div class="stat-card">
+                    <h3>Total Tests</h3>
+                    <p id="totalTests">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Passed</h3>
+                    <p id="passedTests" style="color: #28a745;">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Failed</h3>
+                    <p id="failedTests" style="color: #dc3545;">0</p>
+                </div>
+            </div>
+
+            <div id="testResults"></div>
+        </div>
+
+        <div class="footer">
+            <p>DXClusterAPI Test Suite - Real-time endpoint validation and monitoring</p>
+            <p style="margin-top: 8px; font-size: 0.9em;">
+                <a href="/demo" style="color: #667eea; text-decoration: none;">📊 Demo Page</a> | 
+                <a href="/info" style="color: #667eea; text-decoration: none;">📋 API Info</a> | 
+                <a href="https://github.com/int2001/DXClusterAPI" target="_blank" style="color: #667eea; text-decoration: none;">💻 GitHub</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        let testResults = {
+            total: 0,
+            passed: 0,
+            failed: 0,
+            tests: []
+        };
+
+        let healthData = null;
+
+        // Define all test endpoints
+        const testSuite = {
+            'System': {
+                enabled: true,
+                endpoints: [
+                    { method: 'GET', path: '/', name: 'API Information (Root)' },
+                    { method: 'GET', path: '/info', name: 'API Information' },
+                    { method: 'GET', path: '/health', name: 'Health Check' },
+                    { method: 'GET', path: '/stats', name: 'Statistics' }
+                ]
+            },
+            'Analytics': {
+                checkEnabled: (health) => health?.modules?.analytics,
+                endpoints: [
+                    { method: 'GET', path: '/analytics', name: 'Analytics Summary' }
+                ]
+            },
+            'RBN': {
+                checkEnabled: (health) => health?.modules?.rbn?.enabled,
+                endpoints: [
+                    { method: 'GET', path: '/spots/source/rbn', name: 'RBN Spots' }
+                ]
+            },
+            'Metrics': {
+                checkEnabled: (health) => health?.modules?.metrics?.enabled,
+                endpoints: [
+                    { method: 'GET', path: '/metrics', name: 'Prometheus Metrics' }
+                ]
+            },
+            'Demo': {
+                checkEnabled: (health) => health?.modules?.demo,
+                endpoints: [
+                    { method: 'GET', path: '/demo', name: 'Demo Page (HTML)' }
+                ]
+            },
+            'API v1': {
+                checkEnabled: (health) => health?.modules?.apiv1?.enabled,
+                endpoints: [
+                    { method: 'GET', path: '/spots', name: 'All Spots' },
+                    { method: 'GET', path: '/spots/20m', name: 'Spots by Band (20m)' },
+                    { method: 'GET', path: '/spots/source/pota', name: 'Spots by Source (POTA)' },
+                    { method: 'GET', path: '/spot/14.074', name: 'Spot by Frequency' }
+                ]
+            },
+            'API v2': {
+                checkEnabled: (health) => health?.modules?.apiv2?.enabled,
+                endpoints: [
+                    { method: 'GET', path: '/api/v2/spots', name: 'All Spots' },
+                    { method: 'GET', path: '/api/v2/spots?limit=10', name: 'Spots with Limit' },
+                    { method: 'GET', path: '/api/v2/spots?band=20m', name: 'Spots by Band (20m)' },
+                    { method: 'GET', path: '/api/v2/spots?source=pota', name: 'Spots by Source (POTA)' },
+                    { method: 'GET', path: '/api/v2/spots?mode=phone', name: 'Spots by Mode (Phone)' },
+                    { method: 'GET', path: '/api/v2/spots?mode=cw,digi', name: 'Spots by Multiple Modes' },
+                    { method: 'GET', path: '/api/v2/spots?submode=FT8', name: 'Spots by Submode (FT8)' },
+                    { method: 'GET', path: '/api/v2/spots?continent=EU', name: 'Spots by Continent (EU)' },
+                    { method: 'GET', path: '/api/v2/spots?pota=true', name: 'POTA Spots Only' },
+                    { method: 'GET', path: '/api/v2/spots?contest=true', name: 'Contest Spots Only' },
+                    { method: 'GET', path: '/api/v2/spot/14074', name: 'Spot by Frequency' },
+                    { method: 'GET', path: '/api/v2/bands', name: 'Band Statistics' },
+                    { method: 'GET', path: '/api/v2/sources', name: 'Source Statistics' }
+                ]
+            }
+        };
+
+        async function runAllTests() {
+            clearAllResults();
+            
+            // First, fetch health data
+            try {
+                const response = await fetch('/health');
+                healthData = await response.json();
+            } catch (error) {
+                console.error('Failed to fetch health data:', error);
+                healthData = null;
+            }
+
+            // Run tests for each module
+            for (const [moduleName, moduleConfig] of Object.entries(testSuite)) {
+                await testModule(moduleName, moduleConfig);
+            }
+
+            updateStats();
+        }
+
+        async function testModule(moduleName, moduleConfig) {
+            const enabled = moduleConfig.enabled || 
+                           (moduleConfig.checkEnabled && healthData && moduleConfig.checkEnabled(healthData));
+
+            const moduleDiv = createModuleSection(moduleName, enabled);
+            document.getElementById('testResults').appendChild(moduleDiv);
+
+            if (!enabled) {
+                // Skip disabled modules
+                return;
+            }
+
+            // Test each endpoint
+            for (const endpoint of moduleConfig.endpoints) {
+                await testEndpoint(moduleName, endpoint, moduleDiv);
+            }
+        }
+
+        function createModuleSection(moduleName, enabled) {
+            const section = document.createElement('div');
+            section.className = 'module-section';
+            section.id = `module-${moduleName.replace(/\s+/g, '-')}`;
+
+            const statusClass = enabled ? 'status-enabled' : 'status-skipped';
+            const statusText = enabled ? 'Enabled' : 'Disabled';
+
+            section.innerHTML = `
+                <div class="module-header" onclick="toggleModule('${moduleName.replace(/\s+/g, '-')}')">
+                    <h2>
+                        <span class="collapse-icon">▼</span>
+                        ${moduleName}
+                    </h2>
+                    <span class="module-status ${statusClass}">${statusText}</span>
+                </div>
+                <div class="module-body" id="body-${moduleName.replace(/\s+/g, '-')}">
+                    ${!enabled ? '<p style="color: #6c757d; font-style: italic;">Module is disabled - skipping tests</p>' : ''}
+                </div>
+            `;
+
+            return section;
+        }
+
+        async function testEndpoint(moduleName, endpoint, moduleDiv) {
+            const bodyDiv = moduleDiv.querySelector('.module-body');
+            const testDiv = createEndpointTest(endpoint);
+            bodyDiv.appendChild(testDiv);
+
+            testResults.total++;
+            updateStats();
+
+            try {
+                const startTime = Date.now();
+                
+                // Prepare headers
+                const headers = {};
+                const apiKey = document.getElementById('apiKey').value;
+                const clientId = document.getElementById('clientId').value;
+                
+                if (apiKey) headers['X-API-Key'] = apiKey;
+                if (clientId) headers['X-Client-ID'] = clientId;
+
+                // Make request
+                updateTestStatus(testDiv, 'pending', 'Testing...');
+                
+                const requestInfo = {
+                    method: endpoint.method,
+                    url: endpoint.path,
+                    headers: headers,
+                    timestamp: new Date().toISOString()
+                };
+                
+                updateRequestDisplay(testDiv, requestInfo);
+
+                const response = await fetch(endpoint.path, {
+                    method: endpoint.method,
+                    headers: headers
+                });
+
+                const duration = Date.now() - startTime;
+                const contentType = response.headers.get('content-type');
+                let responseData;
+
+                if (contentType && contentType.includes('application/json')) {
+                    responseData = await response.json();
+                } else {
+                    const text = await response.text();
+                    responseData = text.substring(0, 500) + (text.length > 500 ? '...' : '');
+                }
+
+                const responseInfo = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: Object.fromEntries(response.headers.entries()),
+                    data: responseData,
+                    duration: duration
+                };
+
+                updateResponseDisplay(testDiv, responseInfo);
+
+                if (response.ok) {
+                    updateTestStatus(testDiv, 'success', `✓ Passed (${duration}ms)`);
+                    testResults.passed++;
+                    testResults.tests.push({ module: moduleName, endpoint: endpoint.name, status: 'passed', response: responseInfo });
+                } else {
+                    updateTestStatus(testDiv, 'error', `✗ Failed (${response.status})`);
+                    testResults.failed++;
+                    testResults.tests.push({ module: moduleName, endpoint: endpoint.name, status: 'failed', response: responseInfo });
+                }
+
+            } catch (error) {
+                updateTestStatus(testDiv, 'error', `✗ Error: ${error.message}`);
+                updateResponseDisplay(testDiv, { error: error.message });
+                testResults.failed++;
+                testResults.tests.push({ module: moduleName, endpoint: endpoint.name, status: 'failed', error: error.message });
+            }
+
+            updateStats();
+        }
+
+        function createEndpointTest(endpoint) {
+            const div = document.createElement('div');
+            div.className = 'endpoint-test';
+
+            div.innerHTML = `
+                <div class="endpoint-header">
+                    <div>
+                        <span class="endpoint-method method-${endpoint.method.toLowerCase()}">${endpoint.method}</span>
+                        <span class="endpoint-url">${endpoint.path}</span>
+                    </div>
+                    <div class="test-status">
+                        <span class="status-indicator status-idle"></span>
+                        <span class="status-text">Ready</span>
+                    </div>
+                </div>
+                <div class="endpoint-body">
+                    <div class="request-section">
+                        <div class="section-title">📤 Request</div>
+                        <div class="code-block request-display">Waiting to execute...</div>
+                    </div>
+                    <div class="response-section">
+                        <div class="section-title">📥 Response</div>
+                        <div class="code-block response-display">No response yet</div>
+                    </div>
+                </div>
+            `;
+
+            return div;
+        }
+
+        function updateTestStatus(testDiv, status, text) {
+            const indicator = testDiv.querySelector('.status-indicator');
+            const statusText = testDiv.querySelector('.status-text');
+            
+            indicator.className = `status-indicator status-${status}`;
+            statusText.textContent = text;
+        }
+
+        function updateRequestDisplay(testDiv, requestInfo) {
+            const display = testDiv.querySelector('.request-display');
+            display.textContent = JSON.stringify(requestInfo, null, 2);
+        }
+
+        function updateResponseDisplay(testDiv, responseInfo) {
+            const display = testDiv.querySelector('.response-display');
+            const responseSection = testDiv.querySelector('.response-section .code-block');
+            
+            if (responseInfo.error) {
+                responseSection.className = 'code-block response-error';
+                display.textContent = `Error: ${responseInfo.error}`;
+            } else {
+                const statusClass = Math.floor(responseInfo.status / 100);
+                responseSection.className = `code-block response-${responseInfo.status < 400 ? 'success' : 'error'}`;
+                
+                const output = {
+                    status: responseInfo.status,
+                    statusText: responseInfo.statusText,
+                    duration: `${responseInfo.duration}ms`,
+                    headers: responseInfo.headers,
+                    data: responseInfo.data
+                };
+                
+                display.textContent = JSON.stringify(output, null, 2);
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('totalTests').textContent = testResults.total;
+            document.getElementById('passedTests').textContent = testResults.passed;
+            document.getElementById('failedTests').textContent = testResults.failed;
+        }
+
+        function clearAllResults() {
+            testResults = {
+                total: 0,
+                passed: 0,
+                failed: 0,
+                tests: []
+            };
+            document.getElementById('testResults').innerHTML = '';
+            updateStats();
+        }
+
+        function toggleModule(moduleId) {
+            const module = document.getElementById(`module-${moduleId}`);
+            const header = module.querySelector('.module-header');
+            header.classList.toggle('collapsed');
+            
+            const body = document.getElementById(`body-${moduleId}`);
+            body.classList.toggle('hidden');
+        }
+
+        function exportResults() {
+            const exportData = {
+                timestamp: new Date().toISOString(),
+                summary: {
+                    total: testResults.total,
+                    passed: testResults.passed,
+                    failed: testResults.failed
+                },
+                health: healthData,
+                tests: testResults.tests
+            };
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `dxcluster-test-results-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Auto-run tests on load if requested
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('autorun') === 'true') {
+            window.addEventListener('load', () => {
+                setTimeout(runAllTests, 500);
+            });
+        }
+    </script>
+</body>
+</html>

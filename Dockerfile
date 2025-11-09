@@ -24,11 +24,16 @@ COPY . .
 # copy production dependencies and source code into final image
 FROM base AS release
 COPY --from=install /temp/prod/node_modules node_modules
-COPY --from=prerelease /usr/src/app/dxcluster/ ./dxcluster
+COPY --from=prerelease /usr/src/app/lib/ ./lib
+COPY --from=prerelease /usr/src/app/modules/ ./modules
+COPY --from=prerelease /usr/src/app/public/ ./public
+COPY --from=prerelease /usr/src/app/app.js .
 COPY --from=prerelease /usr/src/app/index.js .
 COPY --from=prerelease /usr/src/app/package.json .
-COPY --from=prerelease /usr/src/app/pota/ ./pota
-COPY --from=prerelease /usr/src/app/public/ ./public
+COPY --from=prerelease /usr/src/app/.env* ./
+
+# Create logs and data directories
+RUN mkdir -p logs data
 
 # run the app
 USER bun

@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DX Cluster Spot Stream</title>
+    
+    <!-- Prevent caching -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <!-- Prevent search engine indexing and crawling -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+    <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+    <meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
     <style>
         * {
             margin: 0;
@@ -11,33 +21,41 @@
             box-sizing: border-box;
         }
 
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 20px;
-            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
         .container {
-            max-width: 1400px;
-            margin: 0 auto;
+            flex: 1;
+            margin: 10px;
             background: white;
             border-radius: 10px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px 30px;
+            padding: 15px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
 
         .header h1 {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 600;
         }
 
@@ -60,6 +78,23 @@
             background: #44ff44;
         }
 
+        .analytics-icon {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-left: 10px;
+        }
+
+        .analytics-icon:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.6);
+            transform: scale(1.1);
+        }
+
         @keyframes pulse {
             0%, 100% {
                 opacity: 1;
@@ -71,39 +106,95 @@
 
         .stats {
             background: #f8f9fa;
-            padding: 15px 30px;
+            padding: 10px 30px;
             display: flex;
             gap: 30px;
             border-bottom: 1px solid #e0e0e0;
+            flex-wrap: wrap;
+            flex-shrink: 0;
         }
 
         .stat-item {
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 3px;
         }
 
         .stat-label {
-            font-size: 12px;
+            font-size: 11px;
             color: #666;
             text-transform: uppercase;
             font-weight: 600;
         }
 
         .stat-value {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 700;
             color: #667eea;
         }
 
+        .stat-value.small {
+            font-size: 14px;
+        }
+
+        .page-stats {
+            display: flex;
+            gap: 30px;
+            padding-right: 30px;
+            border-right: 2px solid #e0e0e0;
+        }
+
+        .cache-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .cache-stats-label {
+            font-size: 10px;
+            color: #999;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .server-info {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-left: auto;
+            padding-left: 30px;
+            border-left: 2px solid #e0e0e0;
+        }
+
+        .server-info-label {
+            font-size: 10px;
+            color: #999;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .server-info-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
         .table-container {
-            overflow-x: auto;
-            max-height: calc(100vh - 240px);
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 1400px;
+            table-layout: fixed;
         }
 
         thead {
@@ -115,22 +206,61 @@
 
         th {
             text-align: left;
-            padding: 15px 20px;
+            padding: 10px 12px;
             font-weight: 600;
             color: #333;
             border-bottom: 2px solid #e0e0e0;
-            font-size: 13px;
+            font-size: 11px;
             text-transform: uppercase;
+            white-space: nowrap;
         }
 
+        /* Column specific widths with fixed table layout */
+        th:nth-child(1), td:nth-child(1) { width: 8%; }   /* Spotted (callsign) */
+        th:nth-child(2), td:nth-child(2) { width: 13%; }  /* Entity (flag + country) */
+        th:nth-child(3), td:nth-child(3) { width: 8%; }   /* Frequency */
+        th:nth-child(4), td:nth-child(4) { width: 4%; }   /* Band */
+        th:nth-child(5), td:nth-child(5) { width: 5%; }   /* Mode */
+        th:nth-child(6), td:nth-child(6) { width: 5%; }   /* SubMode */
+        th:nth-child(7), td:nth-child(7) { width: 6%; }   /* Source */
+        th:nth-child(8), td:nth-child(8) { width: 7%; }   /* Refs - small badges */
+        th:nth-child(9), td:nth-child(9) { width: 8%; }   /* Contest */
+        th:nth-child(10), td:nth-child(10) { width: 30%; }/* Message - largest */
+        th:nth-child(11), td:nth-child(11) { width: 6%; } /* Time */
+
         td {
-            padding: 12px 20px;
+            padding: 8px 12px;
             border-bottom: 1px solid #f0f0f0;
-            font-size: 14px;
+            font-size: 13px;
+            vertical-align: top;
+        }
+
+        /* Most cells don't wrap */
+        td {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Message column wraps */
+        td:nth-child(10) {
+            white-space: normal;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 400px;
+        }
+
+        /* Entity can wrap if really long country names */
+        td:nth-child(2) {
+            white-space: normal;
         }
 
         tbody tr {
             transition: background-color 0.2s;
+        }
+
+        tbody tr {
+            cursor: pointer;
         }
 
         tbody tr:hover {
@@ -173,14 +303,13 @@
         .time {
             color: #666;
             font-size: 12px;
+            white-space: nowrap;
         }
 
         .message {
             color: #555;
-            max-width: 300px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            font-size: 12px;
+            word-wrap: break-word;
         }
 
         .no-data {
@@ -198,26 +327,404 @@
             font-size: 11px;
             font-weight: 600;
         }
+
+        .mode-badge {
+            background: #6c757d;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .submode-badge {
+            background: #495057;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .source-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .source-badge.pota {
+            background: #28a745;
+            color: white;
+        }
+
+        .source-badge.sota {
+            background: #dc3545;
+            color: white;
+        }
+
+        .source-badge.cluster {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .source-badge.rbn {
+            background: #ff9800;
+            color: white;
+        }
+
+        .badge-group {
+            display: flex;
+            gap: 3px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .ref-badge {
+            padding: 2px 5px;
+            border-radius: 6px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .ref-badge.sota {
+            background: #dc3545;
+            color: white;
+        }
+
+        .ref-badge.pota {
+            background: #28a745;
+            color: white;
+        }
+
+        .ref-badge.iota {
+            background: #007bff;
+            color: white;
+        }
+
+        .ref-badge.wwff {
+            background: #ff8c00;
+            color: white;
+        }
+
+        .ref-badge.contest {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .footer {
+            background: #f8f9fa;
+            padding: 12px 30px;
+            border-top: 2px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #666;
+            flex-shrink: 0;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .source-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: flex-start;
+        }
+
+        .cache-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.6);
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 0;
+            border: 1px solid #888;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+            animation: slideDown 0.3s;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            line-height: 1;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .modal-close:hover,
+        .modal-close:focus {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-body {
+            padding: 20px 30px;
+            max-height: calc(80vh - 140px);
+            overflow-y: auto;
+        }
+
+        .json-container {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            overflow-x: auto;
+        }
+
+        .json-container pre {
+            margin: 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #333;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .modal-footer {
+            padding: 15px 30px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .modal-btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .modal-btn.copy {
+            background: #667eea;
+            color: white;
+        }
+
+        .modal-btn.copy:hover {
+            background: #5568d3;
+        }
+
+        .modal-btn.copy.copied {
+            background: #28a745;
+        }
+
+        .modal-btn.close {
+            background: #6c757d;
+            color: white;
+        }
+
+        .modal-btn.close:hover {
+            background: #5a6268;
+        }
+
+        /* Analytics modal specific styles */
+        .analytics-section {
+            margin-bottom: 25px;
+        }
+
+        .analytics-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+        }
+
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .analytics-stat {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+
+        .analytics-stat-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .analytics-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .analytics-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .analytics-list-item {
+            padding: 8px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 13px;
+        }
+
+        .analytics-list-item:last-child {
+            border-bottom: none;
+        }
+
+        .analytics-list-item strong {
+            color: #667eea;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>DX Cluster Spot Stream</h1>
+            <h1>DXClusterAPI - Demo Page</h1>
             <div class="status">
                 <div class="status-indicator" id="statusIndicator"></div>
                 <span id="statusText">Connecting...</span>
+                <button class="analytics-icon" onclick="showAnalytics()" title="View Analytics">
+                    📊
+                </button>
             </div>
         </div>
 
         <div class="stats">
-            <div class="stat-item">
-                <span class="stat-label">Total Spots</span>
-                <span class="stat-value" id="totalSpots">0</span>
+            <div class="page-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Total Spots</span>
+                    <span class="stat-value" id="totalSpots">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Spots/Min</span>
+                    <span class="stat-value" id="spotsPerMin">0</span>
+                </div>
             </div>
-            <div class="stat-item">
-                <span class="stat-label">Spots/Min</span>
-                <span class="stat-value" id="spotsPerMin">0</span>
+            <div class="cache-stats">
+                <div class="cache-stats-label">Cache by Source:</div>
+                <div class="source-stats" id="sourceStats">
+                    <!-- Source stats will be populated dynamically -->
+                </div>
+            </div>
+            <div class="server-info">
+                <div class="server-info-label">Instance Information:</div>
+                <div class="server-info-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Version</span>
+                        <span class="stat-value small" id="version">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Cache Limit</span>
+                        <span class="stat-value small" id="cacheLimit">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Cache</span>
+                        <span class="stat-value small" id="cacheSize">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Modules</span>
+                        <span class="stat-value small" id="modules">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Clusters</span>
+                        <span class="stat-value small" id="clusterCount">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Uptime</span>
+                        <span class="stat-value small" id="uptime">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Memory</span>
+                        <span class="stat-value small" id="memory">-</span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -229,34 +736,108 @@
                         <th>Entity</th>
                         <th>Frequency</th>
                         <th>Band</th>
+                        <th>Mode</th>
+                        <th>SubMode</th>
+                        <th>Source</th>
+                        <th>Refs</th>
+                        <th>Contest</th>
                         <th>Message</th>
                         <th>Time</th>
                     </tr>
                 </thead>
                 <tbody id="spotsTable">
                     <tr>
-                        <td colspan="6" class="no-data">Waiting for spots...</td>
+                        <td colspan="11" class="no-data">Waiting for spots...</td>
                     </tr>
                 </tbody>
             </table>
+        </div>
+
+        <div class="footer">
+            <div>
+                <strong>DXClusterAPI</strong> v<span id="footerVersion">2.0.0</span> - 
+                <a href="https://github.com/int2001/DXClusterAPI" target="_blank">GitHub Repository</a> |
+                <a href="/test" target="_blank">Test Suite</a> |
+                <a href="/info" target="_blank">API Info</a>
+            </div>
+            <div>
+                Made with ❤️ for the Ham Radio community
+            </div>
+        </div>
+    </div>
+
+    <!-- Spot Details Modal -->
+    <div id="spotModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Spot Details - Raw JSON</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="json-container">
+                    <pre id="spotJson"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn copy" id="copyBtn" onclick="copyToClipboard()">Copy to Clipboard</button>
+                <button class="modal-btn close" onclick="closeModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Modal -->
+    <div id="analyticsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📊 API Analytics</h2>
+                <button class="modal-close" onclick="closeAnalyticsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="analyticsContent">
+                    <p style="text-align: center; color: #666;">Loading analytics...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn close" onclick="closeAnalyticsModal()">Close</button>
+            </div>
         </div>
     </div>
 
     <script>
         let ws;
-        let totalSpots = 0;
+        let displayedSpots = new Set(); // Track unique spots by frequency
         let spotsInLastMinute = [];
         const maxDisplaySpots = 100;
+        let usePolling = false;
+        let pollingInterval;
+        let wsConnectionAttempts = 0;
+        const maxWsAttempts = 3;
+        let connectionHealthy = true;
+        let lastSuccessfulPoll = Date.now();
 
         function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}`;
+            // After 3 failed attempts, switch to polling
+            if (wsConnectionAttempts >= maxWsAttempts) {
+                console.log('WebSocket unavailable, switching to polling mode');
+                startPolling();
+                return;
+            }
 
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            console.log('Attempting WebSocket connection to:', wsUrl);
             ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
-                console.log('WebSocket connected');
-                updateStatus(true);
+                console.log('WebSocket connected successfully');
+                wsConnectionAttempts = 0;
+                usePolling = false;
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                }
+                updateStatus(true, 'WebSocket');
             };
 
             ws.onmessage = (event) => {
@@ -264,6 +845,8 @@
                     const message = JSON.parse(event.data);
                     if (message.type === 'spot') {
                         addSpot(message.data);
+                    } else if (message.type === 'connected') {
+                        console.log('Server confirmed WebSocket connection');
                     }
                 } catch (error) {
                     console.error('Error parsing message:', error);
@@ -272,24 +855,71 @@
 
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
+                wsConnectionAttempts++;
                 updateStatus(false);
             };
 
-            ws.onclose = () => {
-                console.log('WebSocket disconnected');
+            ws.onclose = (event) => {
+                console.log('WebSocket disconnected. Code:', event.code, 'Reason:', event.reason);
                 updateStatus(false);
-                // Attempt to reconnect after 3 seconds
-                setTimeout(connectWebSocket, 3000);
+                
+                // Don't increment on clean close (1000) or going away (1001)
+                if (event.code !== 1000 && event.code !== 1001) {
+                    wsConnectionAttempts++;
+                }
+                
+                // Attempt to reconnect after 3 seconds if not at max attempts
+                if (wsConnectionAttempts < maxWsAttempts) {
+                    setTimeout(connectWebSocket, 3000);
+                } else {
+                    console.log('Max WebSocket attempts reached, switching to polling');
+                    startPolling();
+                }
             };
         }
 
-        function updateStatus(connected) {
+        function startPolling() {
+            if (usePolling) return; // Already polling
+            usePolling = true;
+            updateStatus(true, 'Polling');
+            
+            // Poll every 2 seconds
+            pollingInterval = setInterval(pollSpots, 2000);
+            pollSpots(); // Initial poll
+        }
+
+        async function pollSpots() {
+            try {
+                const response = await fetch('/spots');
+                if (!response.ok) throw new Error('Poll failed');
+                
+                const spots = await response.json();
+                
+                // Update connection status on successful poll
+                lastSuccessfulPoll = Date.now();
+                if (!connectionHealthy) {
+                    connectionHealthy = true;
+                    updateStatus(true, 'Polling');
+                }
+                
+                // Process all spots and let addSpot handle deduplication
+                // This way we always process the data even if total count hasn't changed
+                spots.forEach(spot => addSpot(spot));
+                
+            } catch (error) {
+                console.error('Polling error:', error);
+                connectionHealthy = false;
+                updateStatus(false);
+            }
+        }
+
+        function updateStatus(connected, mode = '') {
             const indicator = document.getElementById('statusIndicator');
             const text = document.getElementById('statusText');
 
             if (connected) {
                 indicator.classList.add('connected');
-                text.textContent = 'Connected';
+                text.textContent = mode ? `Connected (${mode})` : 'Connected';
             } else {
                 indicator.classList.remove('connected');
                 text.textContent = 'Disconnected';
@@ -304,6 +934,15 @@
                 table.innerHTML = '';
             }
 
+            // Generate unique ID for this spot (frequency + spotted callsign)
+            const spotId = `${spot.frequency}-${spot.spotted}`;
+            
+            // Skip if we already displayed this spot
+            if (displayedSpots.has(spotId)) {
+                return;
+            }
+            displayedSpots.add(spotId);
+
             // Create new row
             const row = document.createElement('tr');
             row.className = 'new-spot';
@@ -311,6 +950,46 @@
             // Format time
             const time = new Date(spot.when);
             const timeStr = time.toLocaleTimeString();
+
+            // Determine source badge class and display name
+            let sourceClass = 'cluster';
+            let sourceName = spot.source || 'cluster';
+            
+            if (spot.source === 'pota') {
+                sourceClass = 'pota';
+                sourceName = 'POTA';
+            } else if (spot.source === 'sota') {
+                sourceClass = 'sota';
+                sourceName = 'SOTA';
+            } else if (spot.source === 'rbn') {
+                sourceClass = 'rbn';
+                sourceName = 'RBN';
+            } else {
+                // For cluster sources, show the actual cluster name
+                sourceName = spot.source.toUpperCase();
+            }
+
+            // Build reference badges
+            let refBadges = '';
+            if (spot.dxcc_spotted?.sota_ref) {
+                refBadges += `<span class="ref-badge sota">${escapeHtml(spot.dxcc_spotted.sota_ref)}</span>`;
+            }
+            if (spot.dxcc_spotted?.pota_ref) {
+                refBadges += `<span class="ref-badge pota">${escapeHtml(spot.dxcc_spotted.pota_ref)}</span>`;
+            }
+            if (spot.dxcc_spotted?.iota_ref) {
+                refBadges += `<span class="ref-badge iota">${escapeHtml(spot.dxcc_spotted.iota_ref)}</span>`;
+            }
+            if (spot.dxcc_spotted?.wwff_ref) {
+                refBadges += `<span class="ref-badge wwff">${escapeHtml(spot.dxcc_spotted.wwff_ref)}</span>`;
+            }
+
+            // Build contest badge separately for its own column
+            let contestBadge = '';
+            if (spot.dxcc_spotted?.isContest) {
+                const contestName = spot.dxcc_spotted.contestName || 'CONTEST';
+                contestBadge = `<span class="ref-badge contest">${escapeHtml(contestName)}</span>`;
+            }
 
             // Build row HTML
             row.innerHTML = `
@@ -321,9 +1000,17 @@
                 </td>
                 <td><span class="frequency">${spot.frequency.toFixed(1)} kHz</span></td>
                 <td><span class="band-badge">${escapeHtml(spot.band || 'N/A')}</span></td>
+                <td><span class="mode-badge">${escapeHtml(spot.mode || '-')}</span></td>
+                <td><span class="submode-badge">${escapeHtml(spot.submode || '-')}</span></td>
+                <td><span class="source-badge ${sourceClass}">${escapeHtml(sourceName)}</span></td>
+                <td><div class="badge-group">${refBadges || '-'}</div></td>
+                <td>${contestBadge || '-'}</td>
                 <td><span class="message">${escapeHtml(spot.message || '')}</span></td>
                 <td><span class="time">${timeStr}</span></td>
             `;
+
+            // Add click handler to show spot details
+            row.addEventListener('click', () => showSpotDetails(spot));
 
             // Insert at the beginning
             table.insertBefore(row, table.firstChild);
@@ -333,9 +1020,8 @@
                 table.removeChild(table.lastChild);
             }
 
-            // Update statistics
-            totalSpots++;
-            document.getElementById('totalSpots').textContent = totalSpots;
+            // Update statistics - show actual displayed count
+            document.getElementById('totalSpots').textContent = displayedSpots.size;
 
             // Track spots for rate calculation
             spotsInLastMinute.push(Date.now());
@@ -352,14 +1038,318 @@
             return div.innerHTML;
         }
 
+        // Modal functions
+        function showSpotDetails(spot) {
+            const modal = document.getElementById('spotModal');
+            const jsonPre = document.getElementById('spotJson');
+            
+            // Format JSON with proper indentation
+            jsonPre.textContent = JSON.stringify(spot, null, 2);
+            
+            // Store the JSON for copying
+            modal.dataset.spotJson = JSON.stringify(spot, null, 2);
+            
+            // Show modal
+            modal.style.display = 'block';
+            
+            // Reset copy button state
+            const copyBtn = document.getElementById('copyBtn');
+            copyBtn.textContent = 'Copy to Clipboard';
+            copyBtn.classList.remove('copied');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('spotModal');
+            modal.style.display = 'none';
+        }
+
+        function closeAnalyticsModal() {
+            const modal = document.getElementById('analyticsModal');
+            modal.style.display = 'none';
+        }
+
+        async function showAnalytics() {
+            const modal = document.getElementById('analyticsModal');
+            const content = document.getElementById('analyticsContent');
+            
+            modal.style.display = 'block';
+            content.innerHTML = '<p style="text-align: center; color: #666;">Loading analytics...</p>';
+            
+            try {
+                const response = await fetch('/analytics');
+                if (!response.ok) throw new Error('Failed to fetch analytics');
+                
+                const data = await response.json();
+                console.log('Analytics data:', data); // Debug log
+                
+                // Build analytics HTML
+                let html = '';
+                
+                // Summary section
+                html += '<div class="analytics-section">';
+                html += '<h3>Summary</h3>';
+                html += '<div class="analytics-grid">';
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">Total Requests</div>
+                    <div class="analytics-stat-value">${(data.summary?.totalRequests || 0).toLocaleString()}</div>
+                </div>`;
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">Total Clients</div>
+                    <div class="analytics-stat-value">${data.summary?.totalClients || 0}</div>
+                </div>`;
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">Endpoints</div>
+                    <div class="analytics-stat-value">${Object.keys(data.endpointStats || {}).length}</div>
+                </div>`;
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">Status</div>
+                    <div class="analytics-stat-value" style="font-size: 14px;">${data.summary?.enabled ? '✓ Active' : '✗ Disabled'}</div>
+                </div>`;
+                html += '</div>';
+                html += '</div>';
+                
+                // All Customers/Clients
+                if (data.clients && data.clients.length > 0) {
+                    html += '<div class="analytics-section">';
+                    html += '<h3>Customers (' + data.clients.length + ')</h3>';
+                    html += '<div class="analytics-list">';
+                    data.clients.forEach(client => {
+                        const firstSeen = client.firstSeen ? new Date(client.firstSeen).toLocaleDateString() : 'Unknown';
+                        const lastSeen = client.lastSeen ? new Date(client.lastSeen).toLocaleString() : 'Unknown';
+                        const userAgent = client.userAgent || 'Unknown';
+                        const clientIdDisplay = client.clientId ? `<br><span style="font-size: 11px; color: #4CAF50;">🆔 Client ID: ${client.clientId}</span>` : '';
+                        html += `<div class="analytics-list-item">
+                            <strong>${client.ip || 'Unknown'}</strong>${clientIdDisplay}<br>
+                            <span style="font-size: 10px; color: #999; word-break: break-all;">
+                                ${userAgent}
+                            </span><br>
+                            <span style="font-size: 11px; color: #666;">
+                                ${(client.totalRequests || 0).toLocaleString()} requests | 
+                                First: ${firstSeen} | 
+                                Last: ${lastSeen}
+                            </span>
+                        </div>`;
+                    });
+                    html += '</div>';
+                    html += '</div>';
+                }
+                
+                // Popular endpoints
+                if (data.endpointStats && Object.keys(data.endpointStats).length > 0) {
+                    const sortedEndpoints = Object.entries(data.endpointStats)
+                        .sort((a, b) => b[1].totalRequests - a[1].totalRequests)
+                        .slice(0, 10); // Top 10
+                    
+                    html += '<div class="analytics-section">';
+                    html += '<h3>Popular Endpoints</h3>';
+                    html += '<div class="analytics-list">';
+                    sortedEndpoints.forEach(([endpoint, stats]) => {
+                        html += `<div class="analytics-list-item">
+                            <strong>${endpoint}</strong> - ${(stats.totalRequests || 0).toLocaleString()} requests from ${stats.uniqueClients || 0} clients
+                        </div>`;
+                    });
+                    html += '</div>';
+                    html += '</div>';
+                }
+                
+                content.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Analytics error:', error);
+                content.innerHTML = '<p style="text-align: center; color: #ff4444;">Failed to load analytics data</p>';
+            }
+        }
+
+        async function copyToClipboard() {
+            const modal = document.getElementById('spotModal');
+            const jsonText = modal.dataset.spotJson;
+            const copyBtn = document.getElementById('copyBtn');
+            
+            try {
+                await navigator.clipboard.writeText(jsonText);
+                copyBtn.textContent = '✓ Copied!';
+                copyBtn.classList.add('copied');
+                
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy to Clipboard';
+                    copyBtn.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                copyBtn.textContent = 'Failed to copy';
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy to Clipboard';
+                }, 2000);
+            }
+        }
+
+        // Close modal when clicking outside of it
+        window.addEventListener('click', (event) => {
+            const spotModal = document.getElementById('spotModal');
+            const analyticsModal = document.getElementById('analyticsModal');
+            
+            if (event.target === spotModal) {
+                closeModal();
+            }
+            if (event.target === analyticsModal) {
+                closeAnalyticsModal();
+            }
+        });
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeModal();
+                closeAnalyticsModal();
+            }
+        });
+
+        function formatUptime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            }
+            return `${minutes}m`;
+        }
+
+        async function updateServerHealth() {
+            try {
+                const response = await fetch('/health');
+                if (!response.ok) throw new Error('Health check failed');
+                
+                const health = await response.json();
+                
+                // Update server info
+                document.getElementById('version').textContent = health.version || '2.0.0';
+                document.getElementById('footerVersion').textContent = health.version || '2.0.0';
+                document.getElementById('cacheLimit').textContent = health.cache?.maxcache || 0;
+                document.getElementById('cacheSize').textContent = health.cache?.spots || 0;
+                document.getElementById('clusterCount').textContent = health.modules?.cluster?.totalClusters || 0;
+                document.getElementById('uptime').textContent = formatUptime(health.uptime || 0);
+                document.getElementById('memory').textContent = `${health.memory?.used || 0}MB`;
+                
+                // Build modules display
+                const modules = [];
+                if (health.modules?.apiv1?.enabled) {
+                    modules.push('API v1');
+                }
+                if (health.modules?.apiv2?.enabled) {
+                    modules.push('API v2');
+                }
+                if (health.modules?.cluster?.enabled) {
+                    modules.push('Cluster');
+                }
+                if (health.modules?.pota) {
+                    modules.push('POTA');
+                }
+                if (health.modules?.sota) {
+                    modules.push('SOTA');
+                }
+                if (health.modules?.rbn?.enabled) {
+                    modules.push('RBN');
+                }
+                if (health.modules?.enrichment) {
+                    modules.push('Enrich');
+                }
+                if (health.modules?.modeClassifier?.enabled) {
+                    modules.push('ModeClass');
+                }
+                if (health.modules?.analytics) {
+                    modules.push('Analytics');
+                }
+                if (health.modules?.metrics?.enabled) {
+                    modules.push('Metrics');
+                }
+                if (health.modules?.rateLimiter?.enabled) {
+                    modules.push('RateLimit');
+                }
+                document.getElementById('modules').textContent = modules.length > 0 ? modules.join(', ') : 'None';
+                
+                // Show/hide analytics icon based on module status
+                const analyticsIcon = document.querySelector('.analytics-icon');
+                if (analyticsIcon) {
+                    analyticsIcon.style.display = health.modules?.analytics ? 'block' : 'none';
+                }
+                
+            } catch (error) {
+                console.error('Health check error:', error);
+            }
+        }
+
+        async function updateStats() {
+            try {
+                const response = await fetch('/stats');
+                if (!response.ok) throw new Error('Stats fetch failed');
+                
+                const stats = await response.json();
+                
+                // Update source statistics
+                const sourceStatsContainer = document.getElementById('sourceStats');
+                sourceStatsContainer.innerHTML = '';
+                
+                if (stats.sources) {
+                    Object.entries(stats.sources).forEach(([source, count]) => {
+                        const statItem = document.createElement('div');
+                        statItem.className = 'stat-item';
+                        
+                        // Determine the badge class
+                        let badgeClass = 'cluster';
+                        let displayName = source.toUpperCase();
+                        
+                        if (source === 'pota') {
+                            badgeClass = 'pota';
+                            displayName = 'POTA';
+                        } else if (source === 'sota') {
+                            badgeClass = 'sota';
+                            displayName = 'SOTA';
+                        } else if (source === 'rbn') {
+                            badgeClass = 'rbn';
+                            displayName = 'RBN';
+                        }
+                        
+                        statItem.innerHTML = `
+                            <span class="stat-label">${displayName}</span>
+                            <span class="stat-value small">${count}</span>
+                        `;
+                        sourceStatsContainer.appendChild(statItem);
+                    });
+                }
+                
+            } catch (error) {
+                console.error('Stats fetch error:', error);
+            }
+        }
+
         // Initialize WebSocket connection
         connectWebSocket();
+
+        // Update server health and stats immediately and every 10 seconds
+        updateServerHealth();
+        updateStats();
+        setInterval(updateServerHealth, 10000);
+        setInterval(updateStats, 10000);
 
         // Update spots per minute every 5 seconds
         setInterval(() => {
             const oneMinuteAgo = Date.now() - 60000;
             spotsInLastMinute = spotsInLastMinute.filter(time => time > oneMinuteAgo);
             document.getElementById('spotsPerMin').textContent = spotsInLastMinute.length;
+        }, 5000);
+
+        // Monitor connection health in polling mode
+        // If we haven't had a successful poll in 15 seconds, mark as disconnected
+        setInterval(() => {
+            if (usePolling) {
+                const timeSinceLastPoll = Date.now() - lastSuccessfulPoll;
+                if (timeSinceLastPoll > 15000 && connectionHealthy) {
+                    connectionHealthy = false;
+                    updateStatus(false);
+                } else if (timeSinceLastPoll <= 15000 && !connectionHealthy) {
+                    connectionHealthy = true;
+                    updateStatus(true, 'Polling');
+                }
+            }
         }, 5000);
     </script>
 </body>

@@ -1,15 +1,39 @@
 {
-  "name": "dxc",
-  "version": "1.0.1",
+  "name": "dxclusterapi",
+  "version": "2.0.0",
+  "description": "Node.js REST API for DX Cluster Spots with POTA and SOTA Integration - Aggregates spots from multiple DX Clusters, POTA, and SOTA into a unified REST API with DXCC lookups",
   "main": "index.js",
+  "author": "int2001",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/int2001/DXClusterAPI.git"
+  },
+  "keywords": [
+    "ham-radio",
+    "dx-cluster",
+    "pota",
+    "sota",
+    "spots",
+    "dxcc",
+    "amateur-radio",
+    "wavelog",
+    "rest-api"
+  ],
+  "scripts": {
+    "start": "node index.js",
+    "start:docker": "MODE=docker node index.js",
+    "start:native": "MODE=native node index.js",
+    "dev": "node index.js"
+  },
   "dependencies": {
     "cors": "^2.8.5",
-    "events": "^3.3.0",
+    "dotenv": "^16.4.5",
     "express": "^4.18.2",
-    "gearman": "^2.1.0",
+    "express-rate-limit": "^7.1.5",
     "morgan": "^1.10.0",
-    "net": "^1.0.2",
+    "node-fetch": "^3.3.2",
+    "prom-client": "^15.1.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
