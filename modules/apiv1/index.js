@@ -100,9 +100,10 @@ class APIv1 {
             
             // Return the latest N spots (spots array is already sorted oldest-first)
             // So we slice from the end to get the newest spots
-            const limitedSpots = spots.length > limit ? spots.slice(-limit) : spots;
+            const limitedSpots = spots.length > limit ? spots.slice(-limit) : spots.slice();
             
             // Reverse to show newest first (most recent at top)
+            // Use slice().reverse() to avoid mutating the original array
             res.json(limitedSpots.reverse());
         });
 
