@@ -71,6 +71,7 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         // DXCC lookup
         dxcc_lookup_wavelog_url: process.env.WAVELOG_URL,
         dxcc_lookup_wavelog_key: process.env.WAVELOG_KEY,
+        maxConcurrentDxcc: parseInt(process.env.MAX_CONCURRENT_DXCC) || 2, // PHP worker limit
         
         // Module configurations
         clusterEnabled: process.env.CLUSTER_ENABLED !== 'false',
@@ -133,6 +134,7 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         config.fileLoggingEnabled = config.fileLoggingEnabled !== false;
         config.logRetentionDays = config.logRetentionDays || 3;
         config.spotMaxAge = config.spotMaxAge || 120;
+        config.maxConcurrentDxcc = config.maxConcurrentDxcc || 2;
         config.trustProxy = config.trustProxy !== false;  // Default true
     } catch (e) {
         console.error('No .env file or config.js found! Please create one based on .env.sample');
@@ -523,6 +525,35 @@ app.get(config.baseUrl + '/stats', (req, res) => {
         sources[sourceName] = spotSet.size;
     });
     
+    // Build mode type breakdown (phone, digi, cw)
+    const modeTypes = {
+        phone: 0,
+        digi: 0,
+        cw: 0,
+        unknown: 0
+    };
+    
+    spots.forEach(spot => {
+        if (spot.mode) {
+            if (modeTypes[spot.mode] !== undefined) {
+                modeTypes[spot.mode]++;
+            } else {
+                modeTypes.unknown++;
+            }
+        } else {
+            modeTypes.unknown++;
+        }
+    });
+    
+    // Build DX continent breakdown (spotted station's continent)
+    const continents = {};
+    spots.forEach(spot => {
+        if (spot.dxcc_spotted && spot.dxcc_spotted.cont) {
+            const cont = spot.dxcc_spotted.cont;
+            continents[cont] = (continents[cont] || 0) + 1;
+        }
+    });
+    
     // Legacy counts (for backward compatibility)
     const clusterSpots = spots.filter(item => 
         item.source !== 'pota' && item.source !== 'sota'
@@ -534,6 +565,8 @@ app.get(config.baseUrl + '/stats', (req, res) => {
         pota: spots.filter(item => item.source === 'pota').length,
         sota: spots.filter(item => item.source === 'sota').length,
         sources: sources,  // Per-source breakdown
+        modeTypes: modeTypes,  // Mode type breakdown (phone/digi/cw)
+        continents: continents,  // DX continent breakdown
         freshest: getFreshestSpot(spots),
         oldest: getOldestSpot(spots)
     };
@@ -564,7 +597,6 @@ app.get(config.baseUrl + '/health', (req, res) => {
             spots: spots.length,
             maxcache: config.maxcache,
             dxccCache: dxccCache.size,
-            dxccPrefixCache: dxccPrefixCache.size,
             bandIndex: bandIndex.size,
             frequencyIndex: frequencyIndex.size,
             sourceIndex: sourceIndex.size,
@@ -1181,20 +1213,12 @@ const DXCC_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;  // 7 days (callsigns don't chan
 const DXCC_CACHE_MAX_SIZE = 20000;  // Increased to 20k - reduces PHP lookups dramatically
 const DXCC_CLEANUP_INTERVAL = 60 * 60 * 1000;  // Cleanup every hour
 
-// Prefix-based DXCC cache: Map<prefix, {dxcc_id, cont, entity, timestamp}>
-// This dramatically increases cache hits since many calls share same prefix
-// Examples: W1*, K2*, DL*, G3*, etc.
-const dxccPrefixCache = new Map();
-const DXCC_PREFIX_CACHE_MAX_SIZE = 5000;  // Store 5k prefixes (covers most amateur radio)
-const DXCC_PREFIX_TTL = 30 * 24 * 60 * 60 * 1000;  // 30 days (prefixes change rarely)
-
 // Pending lookup queue to batch requests and prevent duplicate concurrent lookups
 const pendingDxccLookups = new Map(); // Map<callsign, Promise>
 
 // DXCC lookup rate limiting to prevent overwhelming PHP-FPM
 let dxccLookupQueue = [];
 let dxccLookupInProgress = false;
-const MAX_CONCURRENT_DXCC = 2; // Max 2 concurrent PHP requests
 let activeDxccLookups = 0;
 
 // Periodic cleanup of DXCC cache to remove expired entries
@@ -1210,17 +1234,8 @@ setInterval(() => {
         }
     }
     
-    // Clean prefix cache
-    let prefixRemoved = 0;
-    for (const [prefix, entry] of dxccPrefixCache.entries()) {
-        if (now - entry.timestamp > DXCC_PREFIX_TTL) {
-            dxccPrefixCache.delete(prefix);
-            prefixRemoved++;
-        }
-    }
-    
-    if (removedCount > 0 || prefixRemoved > 0) {
-        console.log(`[DXCC Cache] Cleaned up ${removedCount} callsigns, ${prefixRemoved} prefixes. Cache: ${dxccCache.size} calls, ${dxccPrefixCache.size} prefixes`);
+    if (removedCount > 0) {
+        console.log(`[DXCC Cache] Cleaned up ${removedCount} callsigns. Cache: ${dxccCache.size} callsigns`);
     }
 }, DXCC_CLEANUP_INTERVAL);
 
@@ -1246,102 +1261,6 @@ function normalizeCallsign(call) {
     return normalized;
 }
 
-/**
- * Extracts DXCC prefix from callsign
- * Examples: W1ABC -> W1, K2XYZ -> K2, DL3ABC -> DL3, G3XYZ -> G3
- * Handles special cases like 2E0, 9A, etc.
- */
-function extractPrefix(call) {
-    if (!call) return null;
-    
-    const normalized = normalizeCallsign(call);
-    
-    // Handle special prefixes with numbers in middle (e.g., 2E0, 4U1)
-    const specialMatch = normalized.match(/^([0-9][A-Z][0-9])/);
-    if (specialMatch) {
-        return specialMatch[1];
-    }
-    
-    // Handle two-letter + number prefix (most common: W1, K2, DL3, G3, etc.)
-    const twoLetterMatch = normalized.match(/^([A-Z]{1,2}[0-9])/);
-    if (twoLetterMatch) {
-        return twoLetterMatch[1];
-    }
-    
-    // Handle single letter + number (rare but exists: B1, C6, etc.)
-    const singleLetterMatch = normalized.match(/^([A-Z][0-9])/);
-    if (singleLetterMatch) {
-        return singleLetterMatch[1];
-    }
-    
-    // Handle three-letter prefix (e.g., VE3, ZL3, etc.)
-    const threeLetterMatch = normalized.match(/^([A-Z]{2,3}[0-9])/);
-    if (threeLetterMatch) {
-        return threeLetterMatch[1];
-    }
-    
-    return null;
-}
-
-/**
- * Checks if cached DXCC data is valid for this prefix
- * Returns cached data if prefix matches, null otherwise
- */
-function checkPrefixCache(call) {
-    const prefix = extractPrefix(call);
-    if (!prefix) return null;
-    
-    const cached = dxccPrefixCache.get(prefix);
-    if (!cached) return null;
-    
-    // Check if expired
-    const age = Date.now() - cached.timestamp;
-    if (age > DXCC_PREFIX_TTL) {
-        dxccPrefixCache.delete(prefix);
-        return null;
-    }
-    
-    // Return full DXCC data structure
-    return {
-        cont: cached.cont,
-        entity: cached.entity,
-        flag: cached.flag,
-        dxcc_id: cached.dxcc_id,
-        lotw_user: cached.lotw_user || false,  // Prefix can't determine LoTW status
-        lat: cached.lat,
-        lng: cached.lng,
-        cqz: cached.cqz,
-        fromPrefix: true  // Mark that this came from prefix cache
-    };
-}
-
-/**
- * Updates prefix cache with DXCC data from a lookup
- */
-function updatePrefixCache(call, dxccData) {
-    const prefix = extractPrefix(call);
-    if (!prefix || !dxccData || !dxccData.dxcc_id) return;
-    
-    // Check if we need to evict old entries
-    if (dxccPrefixCache.size >= DXCC_PREFIX_CACHE_MAX_SIZE) {
-        // Remove first (oldest) entry
-        const firstKey = dxccPrefixCache.keys().next().value;
-        dxccPrefixCache.delete(firstKey);
-    }
-    
-    // Store essential DXCC info for this prefix
-    dxccPrefixCache.set(prefix, {
-        dxcc_id: dxccData.dxcc_id,
-        cont: dxccData.cont,
-        entity: dxccData.entity,
-        flag: dxccData.flag,
-        lat: dxccData.lat,
-        lng: dxccData.lng,
-        cqz: dxccData.cqz,
-        timestamp: Date.now()
-    });
-}
-
 async function dxcc_lookup(call) {
     if (!call) return {};
     
@@ -1365,37 +1284,18 @@ async function dxcc_lookup(call) {
         }
     }
     
-    // 2. Check prefix cache (fast fallback - covers most cases)
-    const prefixData = checkPrefixCache(normalizedCall);
-    if (prefixData) {
-        // Cache the full callsign with prefix data for even faster future lookups
-        dxccCache.set(normalizedCall, {
-            data: prefixData,
-            timestamp: Date.now(),
-            accessCount: 1,
-            fromPrefix: true
-        });
-        return prefixData;
-    }
-    
-    // 3. Check if lookup is already in progress for this callsign
+    // 2. Check if lookup is already in progress for this callsign
     if (pendingDxccLookups.has(normalizedCall)) {
         // Return the existing promise to avoid duplicate lookups
         return pendingDxccLookups.get(normalizedCall);
     }
     
-    // 4. Perform actual lookup via PHP
+    // 3. Perform actual lookup via PHP
     const lookupPromise = performDxccLookup(normalizedCall);
     pendingDxccLookups.set(normalizedCall, lookupPromise);
     
     try {
         const result = await lookupPromise;
-        
-        // Update prefix cache with this result for future calls with same prefix
-        if (result && result.dxcc_id) {
-            updatePrefixCache(normalizedCall, result);
-        }
-        
         return result;
     } finally {
         // Remove from pending after completion (success or failure)
@@ -1405,7 +1305,7 @@ async function dxcc_lookup(call) {
 
 async function performDxccLookup(call) {
     // Wait if too many concurrent lookups
-    while (activeDxccLookups >= MAX_CONCURRENT_DXCC) {
+    while (activeDxccLookups >= config.maxConcurrentDxcc) {
         await new Promise(resolve => setTimeout(resolve, 50));
     }
     

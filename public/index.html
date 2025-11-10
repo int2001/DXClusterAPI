@@ -14,6 +14,10 @@
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
     <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
     <meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+    
+    <!-- Twemoji for proper emoji/flag display -->
+    <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+    
     <style>
         * {
             margin: 0;
@@ -145,11 +149,10 @@
             
             .server-info {
                 padding-left: 15px;
-                margin-left: 0;
-                border-left: none;
-                border-top: 2px solid #e0e0e0;
-                padding-top: 10px;
-                flex: 1 1 100%;
+                margin-left: 15px;
+                border-left: 2px solid #e0e0e0;
+                display: flex !important;
+                gap: 8px;
             }
             
             .page-stats {
@@ -357,6 +360,14 @@
 
         .entity {
             color: #333;
+        }
+
+        /* Twemoji styling for flag emoji */
+        .flag img.emoji {
+            height: 1.2em;
+            width: 1.2em;
+            margin: 0 0.05em 0 0.1em;
+            vertical-align: -0.1em;
         }
 
         .time {
@@ -1162,6 +1173,17 @@
             // Insert at the beginning
             table.insertBefore(row, table.firstChild);
 
+            // Parse emojis (flags) with Twemoji for cross-platform rendering
+            if (typeof twemoji !== 'undefined') {
+                const flagSpan = row.querySelector('.flag');
+                if (flagSpan) {
+                    twemoji.parse(flagSpan, {
+                        folder: 'svg',
+                        ext: '.svg'
+                    });
+                }
+            }
+
             // Limit number of displayed spots
             while (table.children.length > maxDisplaySpots) {
                 table.removeChild(table.lastChild);
@@ -1242,58 +1264,6 @@
                 // Build spot statistics HTML
                 let html = '';
                 
-                // Overall Statistics Section
-                html += '<div class="analytics-section">';
-                html += '<h3>Overall Statistics</h3>';
-                html += '<div class="analytics-grid">';
-                
-                // Total entries
-                html += `<div class="analytics-stat" style="border-left-color: #667eea;">
-                    <div class="analytics-stat-label">Total Spots</div>
-                    <div class="analytics-stat-value">${stats.entries || 0}</div>
-                </div>`;
-                
-                // Cluster spots
-                html += `<div class="analytics-stat" style="border-left-color: #28a745;">
-                    <div class="analytics-stat-label">Cluster Spots</div>
-                    <div class="analytics-stat-value">${stats.cluster || 0}</div>
-                </div>`;
-                
-                // POTA spots
-                html += `<div class="analytics-stat" style="border-left-color: #ff9800;">
-                    <div class="analytics-stat-label">POTA Spots</div>
-                    <div class="analytics-stat-value">${stats.pota || 0}</div>
-                </div>`;
-                
-                // SOTA spots
-                html += `<div class="analytics-stat" style="border-left-color: #2196F3;">
-                    <div class="analytics-stat-label">SOTA Spots</div>
-                    <div class="analytics-stat-value">${stats.sota || 0}</div>
-                </div>`;
-                
-                // Oldest spot
-                if (stats.oldest) {
-                    const oldestDate = new Date(stats.oldest);
-                    const oldestAge = Math.round((Date.now() - oldestDate.getTime()) / 60000);
-                    html += `<div class="analytics-stat" style="border-left-color: #9e9e9e;">
-                        <div class="analytics-stat-label">Oldest Spot</div>
-                        <div class="analytics-stat-value" style="font-size: 14px;">${oldestAge} min ago</div>
-                    </div>`;
-                }
-                
-                // Freshest spot
-                if (stats.freshest) {
-                    const freshestDate = new Date(stats.freshest);
-                    const freshestAge = Math.round((Date.now() - freshestDate.getTime()) / 1000);
-                    html += `<div class="analytics-stat" style="border-left-color: #4CAF50;">
-                        <div class="analytics-stat-label">Freshest Spot</div>
-                        <div class="analytics-stat-value" style="font-size: 14px;">${freshestAge} sec ago</div>
-                    </div>`;
-                }
-                
-                html += '</div>';
-                html += '</div>';
-                
                 // Spots by Source Section
                 if (stats.sources) {
                     html += '<div class="analytics-section">';
@@ -1321,6 +1291,134 @@
                         
                         html += `<div class="analytics-stat" style="border-left-color: ${borderColor};">
                             <div class="analytics-stat-label">${displayName}</div>
+                            <div class="analytics-stat-value">${count} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
+                        </div>`;
+                    });
+                    
+                    html += '</div>';
+                    html += '</div>';
+                }
+                
+                // Fetch and display spots by band if API v2 is available
+                try {
+                    const bandsResponse = await fetch('/api/v2/bands');
+                    if (bandsResponse.ok) {
+                        const bandsData = await bandsResponse.json();
+                        
+                        if (bandsData.status === 'success' && bandsData.data && bandsData.data.length > 0) {
+                            html += '<div class="analytics-section">';
+                            html += '<h3>Spots by Band</h3>';
+                            html += '<div class="analytics-grid">';
+                            
+                            // Sort by count descending
+                            const sortedBands = bandsData.data.sort((a, b) => b.count - a.count);
+                            
+                            sortedBands.forEach(item => {
+                                const percentage = stats.entries > 0 ? ((item.count / stats.entries) * 100).toFixed(1) : 0;
+                                
+                                // Color coding by band
+                                let borderColor = '#667eea';
+                                if (item.band.includes('160')) borderColor = '#8b4513';
+                                else if (item.band.includes('80')) borderColor = '#ff6b6b';
+                                else if (item.band.includes('40')) borderColor = '#ff9f1c';
+                                else if (item.band.includes('30')) borderColor = '#ffd93d';
+                                else if (item.band.includes('20')) borderColor = '#6bcf7f';
+                                else if (item.band.includes('17')) borderColor = '#51cf66';
+                                else if (item.band.includes('15')) borderColor = '#4dabf7';
+                                else if (item.band.includes('12')) borderColor = '#748ffc';
+                                else if (item.band.includes('10')) borderColor = '#9775fa';
+                                else if (item.band.includes('6')) borderColor = '#e599f7';
+                                else if (item.band.includes('2')) borderColor = '#ff6b9d';
+                                
+                                html += `<div class="analytics-stat" style="border-left-color: ${borderColor};">
+                                    <div class="analytics-stat-label">${item.band}</div>
+                                    <div class="analytics-stat-value">${item.count} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
+                                </div>`;
+                            });
+                            
+                            html += '</div>';
+                            html += '</div>';
+                        }
+                    }
+                } catch (bandError) {
+                    console.log('API v2 bands not available:', bandError);
+                    // Silently fail if API v2 is not available
+                }
+                
+                // Spots by Mode Type Section
+                if (stats.modeTypes) {
+                    html += '<div class="analytics-section">';
+                    html += '<h3>Spots by Mode Type</h3>';
+                    html += '<div class="analytics-grid">';
+                    
+                    // Order: CW, Phone, Digi, Unknown
+                    const modeOrder = ['cw', 'phone', 'digi', 'unknown'];
+                    const modeColors = {
+                        cw: '#28a745',      // Green
+                        phone: '#2196F3',   // Blue
+                        digi: '#ff9800',    // Orange
+                        unknown: '#9e9e9e'  // Gray
+                    };
+                    const modeLabels = {
+                        cw: 'CW',
+                        phone: 'Phone',
+                        digi: 'Digital',
+                        unknown: 'Unknown'
+                    };
+                    
+                    modeOrder.forEach(mode => {
+                        const count = stats.modeTypes[mode] || 0;
+                        if (count > 0) {
+                            const percentage = stats.entries > 0 ? ((count / stats.entries) * 100).toFixed(1) : 0;
+                            
+                            html += `<div class="analytics-stat" style="border-left-color: ${modeColors[mode]};">
+                                <div class="analytics-stat-label">${modeLabels[mode]}</div>
+                                <div class="analytics-stat-value">${count} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
+                            </div>`;
+                        }
+                    });
+                    
+                    html += '</div>';
+                    html += '</div>';
+                }
+                
+                // Spots by DX Continent Section
+                if (stats.continents && Object.keys(stats.continents).length > 0) {
+                    html += '<div class="analytics-section">';
+                    html += '<h3>Spots by DX Continent</h3>';
+                    html += '<div class="analytics-grid">';
+                    
+                    // Continent labels and colors
+                    const continentLabels = {
+                        'NA': 'North America',
+                        'SA': 'South America',
+                        'EU': 'Europe',
+                        'AF': 'Africa',
+                        'AS': 'Asia',
+                        'OC': 'Oceania',
+                        'AN': 'Antarctica'
+                    };
+                    
+                    const continentColors = {
+                        'NA': '#4CAF50',   // Green
+                        'SA': '#FF9800',   // Orange
+                        'EU': '#2196F3',   // Blue
+                        'AF': '#9C27B0',   // Purple
+                        'AS': '#F44336',   // Red
+                        'OC': '#00BCD4',   // Cyan
+                        'AN': '#607D8B'    // Blue Gray
+                    };
+                    
+                    // Sort by count descending
+                    const sortedContinents = Object.entries(stats.continents).sort((a, b) => b[1] - a[1]);
+                    
+                    sortedContinents.forEach(([cont, count]) => {
+                        const percentage = stats.entries > 0 ? ((count / stats.entries) * 100).toFixed(1) : 0;
+                        const label = continentLabels[cont] || cont;
+                        const color = continentColors[cont] || '#667eea';
+                        
+                        html += `<div class="analytics-stat" style="border-left-color: ${color};">
+                            <div class="analytics-stat-label">${label} (${cont})</div>
                             <div class="analytics-stat-value">${count} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
                         </div>`;
                     });
@@ -1419,12 +1517,6 @@
                     html += `<div class="analytics-stat" style="border-left-color: #28a745;">
                         <div class="analytics-stat-label">DXCC Cache</div>
                         <div class="analytics-stat-value">${health.cache.dxccCache || 0}</div>
-                    </div>`;
-                    
-                    // DXCC Prefix Cache
-                    html += `<div class="analytics-stat" style="border-left-color: #20c997;">
-                        <div class="analytics-stat-label">DXCC Prefix Cache</div>
-                        <div class="analytics-stat-value">${health.cache.dxccPrefixCache || 0}</div>
                     </div>`;
                     
                     // Band Index

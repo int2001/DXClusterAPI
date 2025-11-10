@@ -164,7 +164,6 @@ Options -Indexes
 #    │   └── rate-limiter/
 #    ├── public/
 #    │   ├── index.html          (demo page)
-#    │   ├── test.html           (test suite)
 #    │   └── robots.txt
 #    ├── logs/                   (auto-created, writable)
 #    ├── data/                   (auto-created, writable)

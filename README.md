@@ -102,6 +102,11 @@ CLUSTERS=[{"host":"dxspots.com","port":7300,"loginPrompt":"login:","call":"TE1ST
 ```bash
 WAVELOG_URL=https://your-wavelog-instance.com/api/lookup
 WAVELOG_KEY=your_api_key_here
+
+# Maximum concurrent DXCC lookups (default: 2)
+# Lower values reduce PHP-FPM memory usage but may slow spot processing
+# Increase to 3-5 if your Wavelog server has plenty of RAM
+MAX_CONCURRENT_DXCC=2
 ```
 
 ### Module Toggles
@@ -515,48 +520,6 @@ Returns API information and available endpoints. Both endpoints return identical
   "documentation": "https://github.com/int2001/DXClusterAPI"
 }
 ```
-
-### Test Page
-```http
-GET /test
-```
-
-**Comprehensive endpoint testing suite** - Interactive web interface for testing all API endpoints across all modules.
-
-**Features:**
-- Tests all endpoints from all modules (System, API v1, API v2, Analytics, Metrics, Demo)
-- Real-time test execution with pass/fail statistics
-- Shows full request details (method, URL, headers, timestamp)
-- Shows full response details (status, headers, data, duration)
-- Optional API key input for testing authenticated API v2 endpoints
-- Optional Client ID input for testing client tracking
-- Export test results as JSON
-- Automatically skips disabled modules with clear indication
-- Clean, modern UI with collapsible module sections
-- Simplified test suite focusing on core endpoint functionality
-
-**Usage:**
-1. Navigate to `/test` in your browser
-2. Optionally enter API Key (for API v2 authentication) and Client ID
-3. Click "Run All Tests" to test all enabled endpoints
-4. View detailed request/response for each endpoint
-5. Export results for documentation or debugging
-
-**Auto-run:** Add `?autorun=true` to run tests automatically on page load:
-```
-http://yourserver.com/test?autorun=true
-```
-
-**Test Coverage:**
-- **System (4 tests):** API info root (`/`), API info (`/info`), health check (`/health`), statistics (`/stats`)
-- **API v1 (4 tests):** All spots, spots by band, spots by source, spot by frequency
-- **API v2 (3 tests):** All spots, band statistics, source statistics
-- **Analytics (1 test):** Usage tracking and client statistics (`/analytics`)
-- **RBN (1 test):** Reverse Beacon Network spots (`/spots/source/rbn`)
-- **Metrics (1 test):** Prometheus metrics endpoint (`/metrics`)
-- **Demo (1 test):** HTML demo page availability (`/demo`)
-
-**Total: 15 automated endpoint tests**
 
 ### Demo Page
 ```http
@@ -1616,7 +1579,6 @@ DXClusterAPI/
 │       └── index.js
 ├── public/
 │   ├── index.html        # Demo web interface
-│   ├── test.html         # Test suite
 │   └── robots.txt        # Search engine exclusion
 ├── data/                 # Data files (analytics, etc.)
 └── logs/                 # Log files (auto-created)
@@ -1767,18 +1729,17 @@ The application features an **aggressive DXCC caching system** optimized to mini
 
 **Caching Strategy:**
 - **Callsign Normalization**: Strips `/P`, `/M`, `/QRP` and other portable suffixes to increase cache hits
-- **Prefix-Based Caching**: Caches DXCC data by prefix (W1, K2, DL3, etc.) for additional 60% reduction in PHP lookups
-- **Multi-Tier Lookup**: Checks full callsign cache → prefix cache → PHP lookup (only if necessary)
-- **Large Cache Size**: 20,000 callsigns + 5,000 prefixes (default)
-- **Long TTL**: 7-day callsign cache, 30-day prefix cache
-- **Concurrency Limiting**: Maximum 2 concurrent DXCC lookups to prevent PHP-FPM overload
+- **Large Cache Size**: 20,000 callsigns (default)
+- **Long TTL**: 7-day callsign cache with automatic cleanup
+- **Concurrency Limiting**: Configurable concurrent DXCC lookups (default: 2, set via `MAX_CONCURRENT_DXCC`)
 - **LRU Eviction**: Least Recently Used entries removed when cache is full
 - **Failed Lookup Cache**: 5-minute cache for bad callsigns to prevent repeated failed lookups
+- **Optimized Wavelog API**: Uses `lookup_v2()` endpoint for minimal PHP overhead
 
 **Cache Hit Optimization:**
 1. `W1ABC` and `W1ABC/P` → Same cache entry (normalized to `W1ABC`)
-2. `W1ABC` cached → `W1XYZ` uses prefix cache (both are `W1` prefix)
-3. Only new prefixes trigger PHP lookups
+2. Full callsign lookup caches accurate DXCC + LoTW data for 7 days
+3. Duplicate lookups return instantly from cache without PHP calls
 
 **Expected Results:**
 - **Cache Hit Rate**: 95%+ after warmup period
@@ -1787,7 +1748,10 @@ The application features an **aggressive DXCC caching system** optimized to mini
 - **PHP-FPM Processes**: Reduced from 24 to 2-3 processes
 
 **Configuration:**
-The DXCC cache settings are automatically optimized. No configuration changes needed. See `DXCC_OPTIMIZATION.md` for technical details.
+- Set `MAX_CONCURRENT_DXCC` in `.env` to control concurrent PHP requests (default: 2)
+- Lower values (1-2) reduce PHP-FPM memory usage but slow spot processing
+- Higher values (3-5) speed up processing but require more PHP-FPM workers
+- See `DXCC_OPTIMIZATION.md` for technical details
 
 **Memory Optimization Features:**
 - Bounded spot array with automatic LRU eviction
@@ -1816,17 +1780,16 @@ If you're experiencing high RAM usage (>1GB):
    ```bash
    curl http://yourserver.com/health | json_pp
    ```
-   Check `cache.dxccCache` and `cache.dxccPrefixCache` values. They should grow over time.
+   Check `cache.dxccCache` value. It should grow over time.
 
 3. **Check demo page memory details**:
    - Open demo page (`/demo`)
    - Click the "🧠 System Info" button
    - Review cache statistics and memory usage
 
-4. **Reduce cache sizes if needed** (edit `app.js`):
+4. **Reduce cache size if needed** (edit `app.js`):
    ```javascript
-   const MAX_DXCC_CACHE = 10000;  // Reduce from 20000
-   const MAX_DXCC_PREFIX_CACHE = 2500;  // Reduce from 5000
+   const DXCC_CACHE_MAX_SIZE = 10000;  // Reduce from 20000
    ```
 
 5. **Increase PHP-FPM cache on external server** (if you control Wavelog):
