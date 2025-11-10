@@ -42,6 +42,12 @@ const frequencyIndex = new Map();  // Map<frequency, spot>
 const sourceIndex = new Map();  // Map<source, Set<spot>>
 const spotKeyIndex = new Map();  // Map<spotKey, spot> for O(1) duplicate detection
 
+// Statistics indexes (for O(1) /stats endpoint)
+const modeTypeStats = { phone: 0, digi: 0, cw: 0, unknown: 0 };
+const continentStats = {};  // DX continent breakdown
+const continentDeStats = {};  // DE (spotter) continent breakdown
+let rbnSpotCount = 0;  // Track RBN spots for early exit in cleanup
+
 // WebSocket and Cluster Manager (initialized later)
 const wsClients = new Set();
 let wss = null;  // Will be initialized in startWebSocket()
@@ -480,26 +486,27 @@ function broadcastSpot(spot) {
         data: spot
     });
 
-    // Clean up dead clients while broadcasting
-    const deadClients = [];
-    wsClients.forEach((client) => {
+    // Single-pass cleanup: remove dead clients immediately
+    let deadCount = 0;
+    for (const client of wsClients) {
         if (client.readyState === WebSocket.OPEN) {
             try {
                 client.send(message);
             } catch (error) {
                 console.error('Error sending to WebSocket client:', error);
-                deadClients.push(client);
+                wsClients.delete(client);
+                deadCount++;
             }
         } else if (client.readyState === WebSocket.CLOSED || client.readyState === WebSocket.CLOSING) {
-            // Mark for removal
-            deadClients.push(client);
+            // Remove dead client immediately
+            wsClients.delete(client);
+            deadCount++;
         }
-    });
+    }
     
-    // Remove dead clients
-    if (deadClients.length > 0) {
-        deadClients.forEach(client => wsClients.delete(client));
-        console.log(`Cleaned up ${deadClients.length} dead WebSocket clients. Active: ${wsClients.size}`);
+    // Log cleanup if any dead clients were found
+    if (deadCount > 0) {
+        console.log(`Cleaned up ${deadCount} dead WebSocket clients. Active: ${wsClients.size}`);
     }
 }
 
@@ -519,64 +526,29 @@ clusterManager.on('spot', async (spot, source) => {
  * GET /stats - Retrieve statistics about cached spots.
  */
 app.get(config.baseUrl + '/stats', (req, res) => {
-    // Build source breakdown from sourceIndex
+    // Build source breakdown from sourceIndex (already O(1))
     const sources = {};
     sourceIndex.forEach((spotSet, sourceName) => {
         sources[sourceName] = spotSet.size;
     });
     
-    // Build mode type breakdown (phone, digi, cw)
-    const modeTypes = {
-        phone: 0,
-        digi: 0,
-        cw: 0,
-        unknown: 0
-    };
+    // Get mode types and continents from indexes (O(1) - no iteration!)
+    // These are updated in real-time as spots are added/removed
     
-    spots.forEach(spot => {
-        if (spot.mode) {
-            if (modeTypes[spot.mode] !== undefined) {
-                modeTypes[spot.mode]++;
-            } else {
-                modeTypes.unknown++;
-            }
-        } else {
-            modeTypes.unknown++;
-        }
-    });
-    
-    // Build DX continent breakdown (spotted station's continent)
-    const continents = {};
-    spots.forEach(spot => {
-        if (spot.dxcc_spotted && spot.dxcc_spotted.cont) {
-            const cont = spot.dxcc_spotted.cont;
-            continents[cont] = (continents[cont] || 0) + 1;
-        }
-    });
-    
-    // Build DE continent breakdown (spotter's continent)
-    const continents_de = {};
-    spots.forEach(spot => {
-        if (spot.dxcc_spotter && spot.dxcc_spotter.cont) {
-            const cont = spot.dxcc_spotter.cont;
-            continents_de[cont] = (continents_de[cont] || 0) + 1;
-        }
-    });
-    
-    // Legacy counts (for backward compatibility)
-    const clusterSpots = spots.filter(item => 
-        item.source !== 'pota' && item.source !== 'sota'
-    ).length;
+    // Legacy counts (for backward compatibility) - use sourceIndex instead of filter
+    const potaCount = sourceIndex.get('pota')?.size || 0;
+    const sotaCount = sourceIndex.get('sota')?.size || 0;
+    const clusterSpots = spots.length - potaCount - sotaCount;
     
     const stats = {
         entries: spots.length,
         cluster: clusterSpots,
-        pota: spots.filter(item => item.source === 'pota').length,
-        sota: spots.filter(item => item.source === 'sota').length,
+        pota: potaCount,
+        sota: sotaCount,
         sources: sources,  // Per-source breakdown
-        modeTypes: modeTypes,  // Mode type breakdown (phone/digi/cw)
-        continents: continents,  // DX continent breakdown
-        continents_de: continents_de,  // DE (spotter) continent breakdown
+        modeTypes: modeTypeStats,  // Mode type breakdown (phone/digi/cw) - from index
+        continents: continentStats,  // DX continent breakdown - from index
+        continents_de: continentDeStats,  // DE (spotter) continent breakdown - from index
         freshest: getFreshestSpot(spots),
         oldest: getOldestSpot(spots)
     };
@@ -710,13 +682,16 @@ function initializeWebSocket(server) {
     
     // Periodic ping to detect dead connections (every 30 seconds)
     const pingInterval = setInterval(() => {
-        const deadClients = [];
-        wsClients.forEach((ws) => {
+        let deadCount = 0;
+        
+        // Single-pass cleanup: terminate and remove dead clients immediately
+        for (const ws of wsClients) {
             if (ws.isAlive === false) {
-                // Connection is dead, terminate it
-                deadClients.push(ws);
+                // Connection is dead, terminate and remove it
                 ws.terminate();
-                return;
+                wsClients.delete(ws);
+                deadCount++;
+                continue;
             }
             
             // Mark as not alive, will be set to true on pong response
@@ -724,14 +699,14 @@ function initializeWebSocket(server) {
             try {
                 ws.ping();
             } catch (e) {
-                deadClients.push(ws);
+                wsClients.delete(ws);
+                deadCount++;
             }
-        });
+        }
         
-        // Clean up dead clients
-        if (deadClients.length > 0) {
-            deadClients.forEach(client => wsClients.delete(client));
-            console.log(`Ping/pong cleanup: removed ${deadClients.length} dead clients. Active: ${wsClients.size}`);
+        // Log cleanup if any dead clients were found
+        if (deadCount > 0) {
+            console.log(`Ping/pong cleanup: removed ${deadCount} dead clients. Active: ${wsClients.size}`);
         }
     }, 30000);
     
@@ -1076,22 +1051,67 @@ async function handlespot(spot, spot_source = "cluster") {
 		}
 
 		// Empty out spots if maximum cache is reached
-		// Remove oldest 10% in batch (they're already at the beginning due to sorted order)
+		// Two-phase eviction: 1) Remove expired RBN spots, 2) LRU eviction if still needed
 		if (spots.length >= config.maxcache) {
-			const batchSize = Math.max(Math.floor(config.maxcache * 0.1), 10); // Remove at least 10 spots
+			// Phase 1: Remove expired RBN spots (they're stale after 5 minutes)
+			const expiredCount = cleanupExpiredRBN();
+			if (expiredCount > 0) {
+				console.log(`Cache full: removed ${expiredCount} expired RBN spots, now ${spots.length} spots`);
+			}
 			
-			// Remove oldest batch from beginning (no sorting needed - array is already sorted!)
-			const removedSpots = spots.splice(0, batchSize);
-			
-			// Clean up indexes
-			removedSpots.forEach(spot => removeFromIndexes(spot));
-			
-			console.log(`Cache full (${config.maxcache}): removed ${batchSize} oldest spots, now ${spots.length} spots`);
+			// Phase 2: If still full after RBN cleanup, do LRU eviction
+			if (spots.length >= config.maxcache) {
+				const batchSize = Math.max(Math.floor(config.maxcache * 0.1), 10); // Remove at least 10 spots
+				
+				// Remove oldest batch from beginning (no sorting needed - array is already sorted!)
+				const removedSpots = spots.splice(0, batchSize);
+				
+				// Clean up indexes
+				removedSpots.forEach(spot => removeFromIndexes(spot));
+				
+				console.log(`Cache still full (${config.maxcache}): removed ${batchSize} oldest spots, now ${spots.length} spots`);
+			}
 		}
 		
 	} catch(e) { 
 		console.error("Error processing spot:", e);
 	} 
+}
+
+/**
+ * Removes expired RBN spots from cache
+ * RBN spots older than RBN_SPOT_TIMEOUT should not be displayed
+ * @returns {number} Number of spots removed
+ */
+function cleanupExpiredRBN() {
+	// Early exit if no RBN spots exist
+	if (rbnSpotCount === 0) {
+		return 0;
+	}
+	
+	const now = Date.now();
+	const rbnMaxAge = config.rbnSpotTimeout * 60 * 1000; // Convert minutes to milliseconds
+	const toRemove = [];
+	
+	// Find all expired RBN spots
+	for (let i = 0; i < spots.length; i++) {
+		const spot = spots[i];
+		if (spot.source === 'rbn') {
+			const age = now - Date.parse(spot.when);
+			if (age > rbnMaxAge) {
+				toRemove.push(i);
+			}
+		}
+	}
+	
+	// Remove in reverse order to preserve indexes during splice
+	for (let i = toRemove.length - 1; i >= 0; i--) {
+		const index = toRemove[i];
+		const spot = spots.splice(index, 1)[0];
+		removeFromIndexes(spot);
+	}
+	
+	return toRemove.length;
 }
 
 // -----------------------------------
@@ -1133,6 +1153,29 @@ function updateIndexes(spot) {
         spotKey = `${spot.frequency}_${spot.spotted}_${spot.spotter}`;
     }
     spotKeyIndex.set(spotKey, spot);
+    
+    // Update statistics indexes
+    // Track mode types
+    if (spot.mode && modeTypeStats[spot.mode] !== undefined) {
+        modeTypeStats[spot.mode]++;
+    } else {
+        modeTypeStats.unknown++;
+    }
+    
+    // Track DX continents
+    if (spot.dxcc_spotted?.cont) {
+        continentStats[spot.dxcc_spotted.cont] = (continentStats[spot.dxcc_spotted.cont] || 0) + 1;
+    }
+    
+    // Track DE continents
+    if (spot.dxcc_spotter?.cont) {
+        continentDeStats[spot.dxcc_spotter.cont] = (continentDeStats[spot.dxcc_spotter.cont] || 0) + 1;
+    }
+    
+    // Track RBN spot count
+    if (spot.source === 'rbn') {
+        rbnSpotCount++;
+    }
 }
 
 /**
@@ -1166,6 +1209,35 @@ function removeFromIndexes(spot) {
     // Remove from spotKey index
     const spotKey = `${spot.frequency}_${spot.spotted}_${spot.spotter}`;
     spotKeyIndex.delete(spotKey);
+    
+    // Update statistics indexes
+    // Decrement mode type stats
+    if (spot.mode && modeTypeStats[spot.mode] !== undefined) {
+        modeTypeStats[spot.mode]--;
+    } else {
+        modeTypeStats.unknown--;
+    }
+    
+    // Decrement DX continent stats
+    if (spot.dxcc_spotted?.cont) {
+        continentStats[spot.dxcc_spotted.cont] = (continentStats[spot.dxcc_spotted.cont] || 1) - 1;
+        if (continentStats[spot.dxcc_spotted.cont] <= 0) {
+            delete continentStats[spot.dxcc_spotted.cont];
+        }
+    }
+    
+    // Decrement DE continent stats
+    if (spot.dxcc_spotter?.cont) {
+        continentDeStats[spot.dxcc_spotter.cont] = (continentDeStats[spot.dxcc_spotter.cont] || 1) - 1;
+        if (continentDeStats[spot.dxcc_spotter.cont] <= 0) {
+            delete continentDeStats[spot.dxcc_spotter.cont];
+        }
+    }
+    
+    // Decrement RBN spot count
+    if (spot.source === 'rbn') {
+        rbnSpotCount--;
+    }
 }
 
 /**
@@ -1176,6 +1248,15 @@ function rebuildIndexes() {
     frequencyIndex.clear();
     sourceIndex.clear();
     spotKeyIndex.clear();
+    
+    // Clear statistics indexes
+    modeTypeStats.phone = 0;
+    modeTypeStats.digi = 0;
+    modeTypeStats.cw = 0;
+    modeTypeStats.unknown = 0;
+    Object.keys(continentStats).forEach(key => delete continentStats[key]);
+    Object.keys(continentDeStats).forEach(key => delete continentDeStats[key]);
+    rbnSpotCount = 0;
 
     spots.forEach(spot => updateIndexes(spot));
 }
@@ -1364,10 +1445,11 @@ async function performDxccLookup(call) {
 
         // Cache the result with LRU eviction
         if (dxccCache.size >= DXCC_CACHE_MAX_SIZE) {
-            // Remove least recently used entries (first 100 entries)
+            // Remove 10% of cache or 500 entries (whichever is larger) to reduce eviction frequency
+            const toRemove = Math.max(500, Math.floor(DXCC_CACHE_MAX_SIZE * 0.1));
             let removed = 0;
             for (const key of dxccCache.keys()) {
-                if (removed >= 100) break;
+                if (removed >= toRemove) break;
                 dxccCache.delete(key);
                 removed++;
             }

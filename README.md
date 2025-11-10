@@ -513,6 +513,7 @@ Returns API information and available endpoints. Both endpoints return identical
         "spotByCallsign": "/api/v2/spots/:callsign",
         "bands": "/api/v2/bands",
         "sources": "/api/v2/sources",
+        "heatmap": "/api/v2/heatmap",
         "info": "/api/v2/info"
       }
     }
@@ -1339,6 +1340,78 @@ Returns a list of all sources currently present in the spot cache with spot coun
     "totalSpots": 135
   }
 }
+```
+
+#### API v2: Get Band Activity Heatmap
+
+```http
+GET /api/v2/heatmap
+GET /api/v2/heatmap?continent=EU
+```
+
+Returns band activity heatmap showing number of spots organized by DE continent (spotter), band, and DX continent (spotted station). Data is cached for 15 minutes to optimize performance.
+
+**Query Parameters:**
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `continent` | string | Filter by DE continent (spotter's continent) | `?continent=EU` |
+
+**Example Response:**
+
+```json
+{
+  "status": "success",
+  "version": "2.0.0",
+  "timestamp": "2025-11-10T15:30:00.000Z",
+  "data": {
+    "continents": ["EU", "NA", "SA", "AS", "AF", "OC"],
+    "bands": ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "4m", "2m", "70cm"],
+    "data": {
+      "EU": {
+        "20m": {
+          "EU": 45,
+          "NA": 23,
+          "AS": 12,
+          "AF": 8,
+          "SA": 5,
+          "OC": 3
+        },
+        "40m": {
+          "EU": 34,
+          "NA": 18,
+          "AS": 7
+        }
+      },
+      "NA": {
+        "20m": {
+          "NA": 38,
+          "EU": 29,
+          "SA": 15
+        }
+      }
+    },
+    "generatedAt": "2025-11-10T15:30:00.000Z",
+    "totalSpots": 1234,
+    "cacheExpiresIn": 900
+  },
+  "meta": {
+    "cached": true,
+    "cacheAgeSeconds": 45,
+    "cacheTTLSeconds": 900
+  }
+}
+```
+
+**Use Cases:**
+- Generate band activity heatmaps like your attached image
+- Visualize propagation patterns between continents
+- Identify optimal bands for specific DE→DX continent paths
+- Monitor real-time band conditions by geographic region
+
+**Example: Get only European spotter activity:**
+```bash
+curl "https://your-api.com/api/v2/heatmap?continent=EU"
 ```
 
 #### API v2: Get API Info

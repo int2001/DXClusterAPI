@@ -23,6 +23,11 @@ class APIv2 {
         this.version = config.version || '2.0.0';
         this.getSpotsData = config.getSpotsData || (() => []);
         this.requireAuth = this.apiKey.length > 0;
+        
+        // Heatmap cache (15-minute TTL)
+        this.heatmapCache = null;
+        this.heatmapCacheTime = 0;
+        this.HEATMAP_CACHE_TTL = 15 * 60 * 1000; // 15 minutes in milliseconds
     }
 
     /**
@@ -180,6 +185,70 @@ class APIv2 {
         }
 
         return filtered;
+    }
+
+    /**
+     * Generate heatmap data: spots by DE continent, band, and DX continent
+     * Results are cached for 15 minutes
+     * @returns {object} Heatmap data structure
+     */
+    generateHeatmap() {
+        // Check cache
+        const now = Date.now();
+        if (this.heatmapCache && (now - this.heatmapCacheTime < this.HEATMAP_CACHE_TTL)) {
+            return this.heatmapCache;
+        }
+
+        const spots = this.getSpotsData();
+        const heatmap = {};
+        
+        // Standard band order for consistency
+        const bandOrder = ['160m', '80m', '60m', '40m', '30m', '20m', '17m', '15m', '12m', '10m', '6m', '4m', '2m', '70cm'];
+        const continents = ['EU', 'NA', 'SA', 'AS', 'AF', 'OC'];
+        
+        // Process each spot
+        spots.forEach(spot => {
+            const deCont = spot.dxcc_spotter?.cont;  // Spotter's continent
+            const dxCont = spot.dxcc_spotted?.cont;  // Spotted station's continent
+            const band = spot.band;
+            
+            // Skip if missing required data
+            if (!deCont || !dxCont || !band) return;
+            
+            // Initialize DE continent if needed
+            if (!heatmap[deCont]) {
+                heatmap[deCont] = {};
+            }
+            
+            // Initialize band if needed
+            if (!heatmap[deCont][band]) {
+                heatmap[deCont][band] = {};
+            }
+            
+            // Initialize DX continent counter if needed
+            if (!heatmap[deCont][band][dxCont]) {
+                heatmap[deCont][band][dxCont] = 0;
+            }
+            
+            // Increment counter
+            heatmap[deCont][band][dxCont]++;
+        });
+        
+        // Structure the result
+        const result = {
+            continents: continents,
+            bands: bandOrder,
+            data: heatmap,
+            generatedAt: new Date().toISOString(),
+            totalSpots: spots.length,
+            cacheExpiresIn: this.HEATMAP_CACHE_TTL / 1000 // seconds
+        };
+        
+        // Cache the result
+        this.heatmapCache = result;
+        this.heatmapCacheTime = now;
+        
+        return result;
     }
 
     /**
@@ -398,6 +467,65 @@ class APIv2 {
         });
 
         /**
+         * GET /api/v2/heatmap
+         * Get band activity heatmap by DE continent, band, and DX continent
+         * Data is cached for 15 minutes for performance
+         * 
+         * Query parameters:
+         * - continent: Filter by DE continent (spotter's continent) (e.g., "EU", "NA")
+         * 
+         * Response structure:
+         * {
+         *   continents: ["EU", "NA", "SA", "AS", "AF", "OC"],
+         *   bands: ["160m", "80m", "60m", "40m", ...],
+         *   data: {
+         *     "EU": {
+         *       "20m": { "EU": 45, "NA": 23, "AS": 12, ... },
+         *       "40m": { "EU": 34, "NA": 18, ... }
+         *     },
+         *     "NA": { ... }
+         *   }
+         * }
+         */
+        router.get('/heatmap', (req, res) => {
+            try {
+                let heatmapData = this.generateHeatmap();
+                
+                // Filter by DE continent if requested
+                const deContFilter = req.query.continent?.toUpperCase();
+                if (deContFilter) {
+                    const filteredData = {};
+                    if (heatmapData.data[deContFilter]) {
+                        filteredData[deContFilter] = heatmapData.data[deContFilter];
+                    }
+                    heatmapData = {
+                        ...heatmapData,
+                        data: filteredData,
+                        filtered: true,
+                        filterContinent: deContFilter
+                    };
+                }
+                
+                res.json(this.formatResponse({
+                    success: true,
+                    data: heatmapData,
+                    meta: {
+                        cached: true,
+                        cacheAgeSeconds: Math.floor((Date.now() - this.heatmapCacheTime) / 1000),
+                        cacheTTLSeconds: this.HEATMAP_CACHE_TTL / 1000
+                    }
+                }));
+            } catch (error) {
+                console.error('API v2 /heatmap error:', error);
+                res.status(500).json(this.formatResponse({
+                    success: false,
+                    error: 'Internal server error',
+                    data: null
+                }));
+            }
+        });
+
+        /**
          * GET /api/v2/info
          * Get API information and capabilities
          */
@@ -439,6 +567,12 @@ class APIv2 {
                             description: 'Get active sources with spot counts'
                         },
                         {
+                            path: '/api/v2/heatmap',
+                            method: 'GET',
+                            description: 'Get band activity heatmap by DE continent, band, and DX continent (cached 15min)',
+                            parameters: ['continent']
+                        },
+                        {
                             path: '/api/v2/info',
                             method: 'GET',
                             description: 'Get API information and capabilities'
@@ -464,7 +598,8 @@ class APIv2 {
             spotByCallsign: baseUrl + '/api/v2/spots/:callsign',
             spotByFrequency: baseUrl + '/api/v2/spot/:qrg',
             bands: baseUrl + '/api/v2/bands',
-            sources: baseUrl + '/api/v2/sources'
+            sources: baseUrl + '/api/v2/sources',
+            heatmap: baseUrl + '/api/v2/heatmap'
         };
     }
 
