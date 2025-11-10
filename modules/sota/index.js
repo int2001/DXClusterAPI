@@ -17,7 +17,8 @@ module.exports = class SOTASpots extends events.EventEmitter {
   constructor(opts = {}) {
     super();
     this.sotapollinterval = Math.max(30, Number(opts.sotapollinterval || 120)); // seconds
-    this.sotaspotcache = [];
+    this.sotaspotcache = new Map(); // Changed to Map for O(1) lookups: key = spotted_freq_mode
+    this.MAX_CACHE_SIZE = 500; // Limit cache size to prevent unbounded growth
     this.apiUrl = "https://api2.sota.org.uk/api/spots/25/all";
   }
 
@@ -48,7 +49,7 @@ module.exports = class SOTASpots extends events.EventEmitter {
           continue;
         }
 
-        const current = [];
+        const currentSpots = new Map();
         for (const item of rawspots) {
           // Safety: Validate item is object with required fields
           if (!item || typeof item !== 'object') continue;
@@ -97,20 +98,34 @@ module.exports = class SOTASpots extends events.EventEmitter {
             }
           };
 
-          current.push(dxSpot);
+          // Create unique key for this spot
+          const deviation = getAllowedDeviation(mode);
+          const freqKey = Math.round(freqKHz / deviation) * deviation;
+          const spotKey = `${spotted}_${freqKey}_${mode}`;
+          
+          // Add to current spots Map
+          currentSpots.set(spotKey, dxSpot);
 
-          // dedupe against previous cycle with kHz tolerance
-          const isNew = !this.sotaspotcache.some((s) =>
-            s.spotted === dxSpot.spotted &&
-            Math.abs(Number(s.frequency) - dxSpot.frequency) <= getAllowedDeviation(mode) &&
-            s.message === dxSpot.message
-          );
-
-          if (isNew) this.emit("spot", dxSpot);
+          // dedupe against previous cycle
+          if (!this.sotaspotcache.has(spotKey)) {
+            this.emit("spot", dxSpot);
+          }
         }
 
         // Replace cache with the latest snapshot
-        this.sotaspotcache = current;
+        this.sotaspotcache = currentSpots;
+        
+        // Enforce cache size limit
+        if (this.sotaspotcache.size > this.MAX_CACHE_SIZE) {
+          // Remove oldest entries (first entries in Map)
+          const toRemove = this.sotaspotcache.size - this.MAX_CACHE_SIZE;
+          let removed = 0;
+          for (const key of this.sotaspotcache.keys()) {
+            if (removed >= toRemove) break;
+            this.sotaspotcache.delete(key);
+            removed++;
+          }
+        }
       } catch (err) {
         console.error("SOTA fetch failed:", err && err.stack ? err.stack : err);
       }

@@ -724,6 +724,12 @@
                         <span class="stat-label">Memory</span>
                         <span class="stat-value small" id="memory">-</span>
                     </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Details</span>
+                        <button class="analytics-icon" onclick="showMemoryDetails()" title="View Memory Details" style="margin: 0; font-size: 14px; padding: 4px 8px;">
+                            🧠
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -799,6 +805,24 @@
             </div>
             <div class="modal-footer">
                 <button class="modal-btn close" onclick="closeAnalyticsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Memory Details Modal -->
+    <div id="memoryModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🧠 Memory & Cache Details</h2>
+                <button class="modal-close" onclick="closeMemoryModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="memoryContent">
+                    <p style="text-align: center; color: #666;">Loading memory details...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn close" onclick="closeMemoryModal()">Close</button>
             </div>
         </div>
     </div>
@@ -1068,6 +1092,185 @@
             modal.style.display = 'none';
         }
 
+        function closeMemoryModal() {
+            const modal = document.getElementById('memoryModal');
+            modal.style.display = 'none';
+        }
+
+        async function showMemoryDetails() {
+            const modal = document.getElementById('memoryModal');
+            const content = document.getElementById('memoryContent');
+            
+            modal.style.display = 'block';
+            content.innerHTML = '<p style="text-align: center; color: #666;">Loading memory details...</p>';
+            
+            try {
+                const response = await fetch('/health');
+                if (!response.ok) throw new Error('Failed to fetch health data');
+                
+                const health = await response.json();
+                console.log('Health data:', health); // Debug log
+                
+                // Build memory details HTML
+                let html = '';
+                
+                // Memory Usage Section
+                html += '<div class="analytics-section">';
+                html += '<h3>Process Memory Usage</h3>';
+                html += '<div class="analytics-grid">';
+                
+                // Heap Used
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">Heap Used</div>
+                    <div class="analytics-stat-value">${health.memory?.heapUsed || 0} MB</div>
+                </div>`;
+                
+                // Heap Total
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">Heap Total</div>
+                    <div class="analytics-stat-value">${health.memory?.heapTotal || 0} MB</div>
+                </div>`;
+                
+                // RSS (Resident Set Size)
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">RSS (Total)</div>
+                    <div class="analytics-stat-value">${health.memory?.rss || 0} MB</div>
+                </div>`;
+                
+                // External
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">External</div>
+                    <div class="analytics-stat-value">${health.memory?.external || 0} MB</div>
+                </div>`;
+                
+                // Array Buffers
+                if (health.memory?.arrayBuffers !== undefined) {
+                    html += `<div class="analytics-stat">
+                        <div class="analytics-stat-label">Array Buffers</div>
+                        <div class="analytics-stat-value">${health.memory.arrayBuffers} MB</div>
+                    </div>`;
+                }
+                
+                // Heap Usage Percentage
+                if (health.memory?.heapUsed && health.memory?.heapTotal) {
+                    const percentage = ((health.memory.heapUsed / health.memory.heapTotal) * 100).toFixed(1);
+                    html += `<div class="analytics-stat">
+                        <div class="analytics-stat-label">Heap Usage</div>
+                        <div class="analytics-stat-value">${percentage}%</div>
+                    </div>`;
+                }
+                
+                html += '</div>';
+                html += '</div>';
+                
+                // Cache Statistics Section
+                if (health.cache) {
+                    html += '<div class="analytics-section">';
+                    html += '<h3>Cache Statistics</h3>';
+                    html += '<div class="analytics-grid">';
+                    
+                    // Spots Cache
+                    html += `<div class="analytics-stat" style="border-left-color: #667eea;">
+                        <div class="analytics-stat-label">Spots Array</div>
+                        <div class="analytics-stat-value">${health.cache.spots || 0} / ${health.cache.maxcache || 0}</div>
+                    </div>`;
+                    
+                    // DXCC Cache
+                    html += `<div class="analytics-stat" style="border-left-color: #28a745;">
+                        <div class="analytics-stat-label">DXCC Cache</div>
+                        <div class="analytics-stat-value">${health.cache.dxccCache || 0}</div>
+                    </div>`;
+                    
+                    // Band Index
+                    html += `<div class="analytics-stat" style="border-left-color: #17a2b8;">
+                        <div class="analytics-stat-label">Band Index</div>
+                        <div class="analytics-stat-value">${health.cache.bandIndex || 0}</div>
+                    </div>`;
+                    
+                    // Frequency Index
+                    html += `<div class="analytics-stat" style="border-left-color: #ffc107;">
+                        <div class="analytics-stat-label">Frequency Index</div>
+                        <div class="analytics-stat-value">${health.cache.frequencyIndex || 0}</div>
+                    </div>`;
+                    
+                    // Source Index
+                    html += `<div class="analytics-stat" style="border-left-color: #dc3545;">
+                        <div class="analytics-stat-label">Source Index</div>
+                        <div class="analytics-stat-value">${health.cache.sourceIndex || 0}</div>
+                    </div>`;
+                    
+                    // SpotKey Index
+                    html += `<div class="analytics-stat" style="border-left-color: #6c757d;">
+                        <div class="analytics-stat-label">SpotKey Index</div>
+                        <div class="analytics-stat-value">${health.cache.spotKeyIndex || 0}</div>
+                    </div>`;
+                    
+                    // WebSocket Clients
+                    html += `<div class="analytics-stat" style="border-left-color: #764ba2;">
+                        <div class="analytics-stat-label">WebSocket Clients</div>
+                        <div class="analytics-stat-value">${health.cache.websocketClients || 0}</div>
+                    </div>`;
+                    
+                    html += '</div>';
+                    html += '</div>';
+                }
+                
+                // System Information Section
+                html += '<div class="analytics-section">';
+                html += '<h3>System Information</h3>';
+                html += '<div class="analytics-grid">';
+                
+                // Uptime
+                const uptime = health.uptime || 0;
+                const uptimeStr = formatUptime(uptime);
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">Uptime</div>
+                    <div class="analytics-stat-value" style="font-size: 16px;">${uptimeStr}</div>
+                </div>`;
+                
+                // Version
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">Version</div>
+                    <div class="analytics-stat-value" style="font-size: 16px;">${health.version || 'Unknown'}</div>
+                </div>`;
+                
+                // Mode
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">Run Mode</div>
+                    <div class="analytics-stat-value" style="font-size: 16px;">${health.mode || 'Unknown'}</div>
+                </div>`;
+                
+                // Active Clusters
+                if (health.modules?.cluster) {
+                    html += `<div class="analytics-stat">
+                        <div class="analytics-stat-label">Active Clusters</div>
+                        <div class="analytics-stat-value">${health.modules.cluster.activeConnections || 0} / ${health.modules.cluster.totalClusters || 0}</div>
+                    </div>`;
+                }
+                
+                html += '</div>';
+                html += '</div>';
+                
+                // Memory Usage Tips
+                html += '<div class="analytics-section">';
+                html += '<h3>ℹ️ Memory Metrics Explained</h3>';
+                html += '<div style="background: #f8f9fa; padding: 15px; border-radius: 6px; font-size: 13px; line-height: 1.6;">';
+                html += '<p><strong>Heap Used:</strong> Memory actively used by JavaScript objects</p>';
+                html += '<p><strong>Heap Total:</strong> Total heap allocated by V8</p>';
+                html += '<p><strong>RSS:</strong> Total memory occupied by the process (including heap, stack, and code)</p>';
+                html += '<p><strong>External:</strong> Memory used by C++ objects bound to JavaScript</p>';
+                html += '<p style="margin-top: 10px; color: #667eea;"><strong>💡 Tip:</strong> Monitor these values over time to detect memory leaks. Heap usage should remain stable during normal operation.</p>';
+                html += '</div>';
+                html += '</div>';
+                
+                content.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Memory details error:', error);
+                content.innerHTML = '<p style="text-align: center; color: #ff4444;">Failed to load memory details</p>';
+            }
+        }
+
         async function showAnalytics() {
             const modal = document.getElementById('analyticsModal');
             const content = document.getElementById('analyticsContent');
@@ -1187,12 +1390,16 @@
         window.addEventListener('click', (event) => {
             const spotModal = document.getElementById('spotModal');
             const analyticsModal = document.getElementById('analyticsModal');
+            const memoryModal = document.getElementById('memoryModal');
             
             if (event.target === spotModal) {
                 closeModal();
             }
             if (event.target === analyticsModal) {
                 closeAnalyticsModal();
+            }
+            if (event.target === memoryModal) {
+                closeMemoryModal();
             }
         });
 
@@ -1201,6 +1408,7 @@
             if (event.key === 'Escape') {
                 closeModal();
                 closeAnalyticsModal();
+                closeMemoryModal();
             }
         });
 
@@ -1227,7 +1435,12 @@
                 document.getElementById('cacheSize').textContent = health.cache?.spots || 0;
                 document.getElementById('clusterCount').textContent = health.modules?.cluster?.totalClusters || 0;
                 document.getElementById('uptime').textContent = formatUptime(health.uptime || 0);
-                document.getElementById('memory').textContent = `${health.memory?.used || 0}MB`;
+                
+                // Show heap used and percentage
+                const heapUsed = health.memory?.heapUsed || 0;
+                const heapTotal = health.memory?.heapTotal || 1;
+                const heapPercent = Math.round((heapUsed / heapTotal) * 100);
+                document.getElementById('memory').textContent = `${heapUsed}MB (${heapPercent}%)`;
                 
                 // Build modules display
                 const modules = [];

@@ -16,6 +16,11 @@ class Analytics {
         this.clients = {};
         this.saveTimer = null;
         
+        // Limits to prevent unbounded growth
+        this.MAX_CLIENTS = 1000;  // Maximum number of clients to track
+        this.MAX_REFERERS_PER_CLIENT = 50;  // Maximum referers per client
+        this.MAX_ENDPOINTS_PER_CLIENT = 100;  // Maximum endpoints per client
+        
         // Endpoints to skip tracking
         this.skipPaths = options.skipPaths || ['/health', '/demo', '/customers', '/analytics'];
         
@@ -144,6 +149,28 @@ class Analytics {
         // Create client key (IP-based, optionally with clientId)
         const clientKey = clientId ? `${clientId}@${ip}` : ip;
         
+        // Check if we've reached max clients limit
+        if (!this.clients[clientKey] && Object.keys(this.clients).length >= this.MAX_CLIENTS) {
+            // Find and remove least active client (LRU)
+            let leastActiveKey = null;
+            let leastActiveRequests = Infinity;
+            let oldestSeen = Date.now();
+            
+            for (const [key, client] of Object.entries(this.clients)) {
+                const lastSeenTime = new Date(client.lastSeen).getTime();
+                if (lastSeenTime < oldestSeen) {
+                    oldestSeen = lastSeenTime;
+                    leastActiveKey = key;
+                    leastActiveRequests = client.totalRequests;
+                }
+            }
+            
+            if (leastActiveKey) {
+                delete this.clients[leastActiveKey];
+                console.log(`[Analytics] Removed least active client to make room (max ${this.MAX_CLIENTS} clients)`);
+            }
+        }
+        
         // Initialize or update client record
         if (!this.clients[clientKey]) {
             this.clients[clientKey] = {
@@ -168,8 +195,24 @@ class Analytics {
             client.clientId = clientId;
         }
         
-        // Track endpoint usage
+        // Track endpoint usage with limit
         if (!client.endpoints[endpoint]) {
+            // Check endpoint limit
+            if (Object.keys(client.endpoints).length >= this.MAX_ENDPOINTS_PER_CLIENT) {
+                // Remove least used endpoint
+                let leastUsedEndpoint = null;
+                let leastCount = Infinity;
+                for (const [ep, data] of Object.entries(client.endpoints)) {
+                    if (data.count < leastCount) {
+                        leastCount = data.count;
+                        leastUsedEndpoint = ep;
+                    }
+                }
+                if (leastUsedEndpoint) {
+                    delete client.endpoints[leastUsedEndpoint];
+                }
+            }
+            
             client.endpoints[endpoint] = {
                 count: 0,
                 methods: {},
@@ -180,9 +223,11 @@ class Analytics {
         client.endpoints[endpoint].lastAccess = new Date().toISOString();
         client.endpoints[endpoint].methods[method] = (client.endpoints[endpoint].methods[method] || 0) + 1;
         
-        // Track referers
+        // Track referers with limit
         if (referer !== 'Direct') {
-            client.referers.add(referer);
+            if (client.referers.size < this.MAX_REFERERS_PER_CLIENT) {
+                client.referers.add(referer);
+            }
         }
     }
 

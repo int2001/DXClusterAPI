@@ -19,6 +19,7 @@ class RBNManager extends EventEmitter {
         this.spots = new Map(); // Key: spotted callsign, Value: Map of continent -> spot
         this.pendingSpots = new Map(); // Track spots currently being processed to prevent race conditions
         this.spotTimeout = options.spotTimeout || 5 * 60 * 1000; // 5 minutes default
+        this.MAX_SPOTS = 2000; // Maximum number of unique callsigns to track
         
         // Feed enable/disable flags
         this.cwRttyEnabled = options.cwRttyEnabled !== false; // default true
@@ -165,6 +166,26 @@ class RBNManager extends EventEmitter {
         
         // Add continent info to spot
         spot.spotterContinent = spotterContinent;
+        
+        // Check if we've reached max spots limit
+        if (!this.spots.has(spottedCall) && this.spots.size >= this.MAX_SPOTS) {
+            // Find and remove oldest spot by timestamp
+            let oldestCall = null;
+            let oldestTime = Date.now();
+            
+            for (const [call, continentMap] of this.spots.entries()) {
+                for (const [continent, spotData] of continentMap.entries()) {
+                    if (spotData.timestamp < oldestTime) {
+                        oldestTime = spotData.timestamp;
+                        oldestCall = call;
+                    }
+                }
+            }
+            
+            if (oldestCall) {
+                this.spots.delete(oldestCall);
+            }
+        }
         
         // Initialize spot entry if doesn't exist
         if (!this.spots.has(spottedCall)) {

@@ -493,16 +493,27 @@ function broadcastSpot(spot) {
         data: spot
     });
 
+    // Clean up dead clients while broadcasting
+    const deadClients = [];
     wsClients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
             try {
                 client.send(message);
             } catch (error) {
                 console.error('Error sending to WebSocket client:', error);
-                wsClients.delete(client);
+                deadClients.push(client);
             }
+        } else if (client.readyState === WebSocket.CLOSED || client.readyState === WebSocket.CLOSING) {
+            // Mark for removal
+            deadClients.push(client);
         }
     });
+    
+    // Remove dead clients
+    if (deadClients.length > 0) {
+        deadClients.forEach(client => wsClients.delete(client));
+        console.log(`Cleaned up ${deadClients.length} dead WebSocket clients. Active: ${wsClients.size}`);
+    }
 }
 
 // Hook up cluster spot events to handlespot function
@@ -549,6 +560,8 @@ app.get(config.baseUrl + '/stats', (req, res) => {
  */
 app.get(config.baseUrl + '/health', (req, res) => {
     const clusterStatus = clusterManager.getStatus();
+    const mem = process.memoryUsage();
+    
     const health = {
         status: 'ok',
         version: APP_VERSION,
@@ -556,12 +569,21 @@ app.get(config.baseUrl + '/health', (req, res) => {
         uptime: process.uptime(),
         mode: config.mode,
         memory: {
-            used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-            total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
+            heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+            heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
+            rss: Math.round(mem.rss / 1024 / 1024),
+            external: Math.round(mem.external / 1024 / 1024),
+            arrayBuffers: Math.round((mem.arrayBuffers || 0) / 1024 / 1024)
         },
         cache: {
             spots: spots.length,
-            maxcache: config.maxcache
+            maxcache: config.maxcache,
+            dxccCache: dxccCache.size,
+            bandIndex: bandIndex.size,
+            frequencyIndex: frequencyIndex.size,
+            sourceIndex: sourceIndex.size,
+            spotKeyIndex: spotKeyIndex.size,
+            websocketClients: wsClients.size
         },
         modules: {
             cluster: {
@@ -646,11 +668,47 @@ function initializeWebSocket(server) {
             console.error('WebSocket client error:', error.message);
             wsClients.delete(ws);
         });
+        
+        // Add ping/pong for connection health monitoring
+        ws.isAlive = true;
+        ws.on('pong', () => {
+            ws.isAlive = true;
+        });
     });
 
     wss.on('error', (error) => {
         console.error('WebSocket server error:', error.message);
     });
+    
+    // Periodic ping to detect dead connections (every 30 seconds)
+    const pingInterval = setInterval(() => {
+        const deadClients = [];
+        wsClients.forEach((ws) => {
+            if (ws.isAlive === false) {
+                // Connection is dead, terminate it
+                deadClients.push(ws);
+                ws.terminate();
+                return;
+            }
+            
+            // Mark as not alive, will be set to true on pong response
+            ws.isAlive = false;
+            try {
+                ws.ping();
+            } catch (e) {
+                deadClients.push(ws);
+            }
+        });
+        
+        // Clean up dead clients
+        if (deadClients.length > 0) {
+            deadClients.forEach(client => wsClients.delete(client));
+            console.log(`Ping/pong cleanup: removed ${deadClients.length} dead clients. Active: ${wsClients.size}`);
+        }
+    }, 30000);
+    
+    // Store interval so we can clear it on shutdown
+    wss.pingInterval = pingInterval;
 
     console.log(`WebSocket server initialized on path /ws`);
     return wss;
@@ -720,6 +778,11 @@ function gracefulShutdown(signal) {
                 client.close(1001, 'Server shutting down');
             } catch (e) {}
         });
+    }
+    
+    // Stop WebSocket ping interval
+    if (wss && wss.pingInterval) {
+        clearInterval(wss.pingInterval);
     }
     
     // Shutdown cluster connections
@@ -943,24 +1006,11 @@ async function handlespot(spot, spot_source = "cluster") {
 		}
 
 		// Empty out spots if maximum cache is reached
-		// Remove the OLDEST spot by timestamp, not by array position
+		// Remove the OLDEST spot by timestamp (optimized)
 		if (spots.length > config.maxcache) {
-			let oldestSpot = spots[0];
-			let oldestIndex = 0;
-			let oldestTime = Date.parse(spots[0].when);
-			
-			// Find the actually oldest spot by timestamp
-			for (let i = 1; i < spots.length; i++) {
-				const spotTime = Date.parse(spots[i].when);
-				if (spotTime < oldestTime) {
-					oldestTime = spotTime;
-					oldestSpot = spots[i];
-					oldestIndex = i;
-				}
-			}
-			
-			// Remove the oldest spot
-			spots.splice(oldestIndex, 1);
+			// Sort once to find oldest, then remove
+			spots.sort((a, b) => Date.parse(a.when) - Date.parse(b.when));
+			const oldestSpot = spots.shift(); // Remove first (oldest) element
 			removeFromIndexes(oldestSpot);
 		}
 		
@@ -1091,10 +1141,27 @@ let consecutiveErrorCount = 0;
 const dxccServer = config.dxcc_lookup_wavelog_url;  // The WaveLog server
 let abortController = null;  // For aborting ongoing requests
 
-// DXCC cache: Map<callsign, {data, timestamp}>
+// DXCC cache: Map<callsign, {data, timestamp, accessCount}>
+// Using LRU (Least Recently Used) eviction strategy
 const dxccCache = new Map();
 const DXCC_CACHE_TTL = 24 * 60 * 60 * 1000;  // 24 hours in milliseconds
-const DXCC_CACHE_MAX_SIZE = 10000;  // Limit cache size to prevent memory issues
+const DXCC_CACHE_MAX_SIZE = 5000;  // Reduced from 10000 to save memory
+const DXCC_CLEANUP_INTERVAL = 60 * 60 * 1000;  // Cleanup every hour
+
+// Periodic cleanup of DXCC cache to remove expired entries
+setInterval(() => {
+    const now = Date.now();
+    let removedCount = 0;
+    for (const [call, entry] of dxccCache.entries()) {
+        if (now - entry.timestamp > DXCC_CACHE_TTL) {
+            dxccCache.delete(call);
+            removedCount++;
+        }
+    }
+    if (removedCount > 0) {
+        console.log(`[DXCC Cache] Cleaned up ${removedCount} expired entries. Cache size: ${dxccCache.size}`);
+    }
+}, DXCC_CLEANUP_INTERVAL);
 
 async function dxcc_lookup(call) {
     // Check cache first
@@ -1102,6 +1169,10 @@ async function dxcc_lookup(call) {
     if (cached) {
         const age = Date.now() - cached.timestamp;
         if (age < DXCC_CACHE_TTL) {
+            // Move to end of Map (LRU) by deleting and re-adding
+            dxccCache.delete(call);
+            cached.accessCount = (cached.accessCount || 0) + 1;
+            dxccCache.set(call, cached);
             return cached.data;
         } else {
             // Expired, remove from cache
@@ -1150,15 +1221,16 @@ async function dxcc_lookup(call) {
 	    cqz: result.dxcc_cqz || null,
         };
 
-        // Cache the result with size limit
+        // Cache the result with LRU eviction
         if (dxccCache.size >= DXCC_CACHE_MAX_SIZE) {
-            // Remove oldest entry (first key in Map)
+            // Remove least recently used entry (first key in Map)
             const firstKey = dxccCache.keys().next().value;
             dxccCache.delete(firstKey);
         }
         dxccCache.set(call, {
             data: returner,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            accessCount: 1
         });
 
         consecutiveErrorCount = 0;  // Reset error count after a successful lookup
@@ -1177,6 +1249,9 @@ async function dxcc_lookup(call) {
         } else if (consecutiveErrorCount % 10 === 0) {
             console.error(`DXCC lookup failed: ${consecutiveErrorCount} consecutive errors`);
         }
+        
+        // Return empty object on error to prevent undefined access
+        return {};
     }
 }
 // ================================================================

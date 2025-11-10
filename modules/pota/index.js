@@ -14,7 +14,8 @@ module.exports = class POTASpots extends events.EventEmitter {
   constructor(opts = {}) {
     super();
     this.potapollinterval = Math.max(30, (opts.potapollinterval || 120)); // Default to 120 seconds, 30 seconds minimum
-    this.potaspotcache = [];
+    this.potaspotcache = new Map(); // Changed to Map for O(1) lookups: key = spotted_freq_mode
+    this.MAX_CACHE_SIZE = 500; // Limit cache size to prevent unbounded growth
   }
 
   //continuously poll POTA API, determine new spots and emit those to event listeners
@@ -25,7 +26,7 @@ module.exports = class POTASpots extends events.EventEmitter {
 		  await sleepNow(this.potapollinterval * 1000);
 
 		  //cache variable
-		  let spots = [];
+		  const currentSpots = new Map();
 
 		  //Try to get data from POTA API
 		  try {
@@ -79,27 +80,36 @@ module.exports = class POTASpots extends events.EventEmitter {
 				  }
 
 				  if (!isNaN(item.frequency)) { 	// ignore POTA-Spots without (valid) frequency
-					  //put spots inside of array to build new
-					  spots.push(dxSpot);
+					  // Create unique key for this spot (use frequency deviation)
+					  const deviation = getAllowedDeviation(mode);
+					  // Round frequency to nearest deviation to group similar spots
+					  const freqKey = Math.round(freq / deviation) * deviation;
+					  const spotKey = `${dxSpot.spotted}_${freqKey}_${mode}`;
+					  
+					  // Add to current spots Map
+					  currentSpots.set(spotKey, dxSpot);
 
-					  //check if the same spot (excluding "when") exists in cache
-					  //use an allowed deviation on frequency to catch multiple spots by RBN or PSK-Reporter for FT8, FT4 and CW modes
-					  let isNewSpot = !this.potaspotcache.some(existingSpot => 
-										   existingSpot.spotted === dxSpot.spotted &&
-											   Math.abs(existingSpot.frequency - dxSpot.frequency) <= getAllowedDeviation(item.mode) &&
-											   existingSpot.message === dxSpot.message
-										  );
-
-										  //emit spot to event listeners
-										  if(isNewSpot)
-											  {
-												  this.emit('spot', dxSpot)
-											  }          
+					  // check if this is a new spot (not in previous cache)
+					  if (!this.potaspotcache.has(spotKey)) {
+						  this.emit('spot', dxSpot);
+					  }
 				  }
 			  });
 
-			  //set the potacache to the current state, effectively deleting all old spots
-			  this.potaspotcache = spots;
+			  // Replace cache with current spots
+			  this.potaspotcache = currentSpots;
+			  
+			  // Enforce cache size limit
+			  if (this.potaspotcache.size > this.MAX_CACHE_SIZE) {
+				  // Remove oldest entries (first entries in Map)
+				  const toRemove = this.potaspotcache.size - this.MAX_CACHE_SIZE;
+				  let removed = 0;
+				  for (const key of this.potaspotcache.keys()) {
+					  if (removed >= toRemove) break;
+					  this.potaspotcache.delete(key);
+					  removed++;
+				  }
+			  }
 
 		  } catch (error) {
 			  //log error to console
