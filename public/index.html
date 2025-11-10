@@ -813,9 +813,6 @@
             <div class="status">
                 <div class="status-indicator" id="statusIndicator"></div>
                 <span id="statusText">Connecting...</span>
-                <button class="analytics-icon" onclick="showAnalytics()" title="View Analytics">
-                    📊
-                </button>
             </div>
         </div>
 
@@ -830,15 +827,15 @@
                     <span class="stat-value" id="spotsPerMin">0</span>
                 </div>
             </div>
-            <div class="cache-stats">
-                <div class="cache-stats-label">Cache by Source:</div>
-                <div class="source-stats" id="sourceStats">
-                    <!-- Source stats will be populated dynamically -->
-                </div>
-            </div>
-            <div class="server-info">
-                <button class="analytics-icon" onclick="showMemoryDetails()" title="View System & Memory Details" style="margin: 0; font-size: 24px; padding: 8px 16px; border-radius: 8px;">
-                    🧠 System Info
+            <div class="server-info" style="display: flex; gap: 8px; align-items: center;">
+                <button class="analytics-icon" onclick="showSpotStats()" title="View Spot Statistics" style="margin: 0; font-size: 24px; padding: 8px 12px; border-radius: 8px;">
+                    📊
+                </button>
+                <button class="analytics-icon" onclick="showAnalytics()" title="View API Usage Analytics" style="margin: 0; font-size: 24px; padding: 8px 12px; border-radius: 8px;">
+                    📈
+                </button>
+                <button class="analytics-icon" onclick="showMemoryDetails()" title="View System & Memory Details" style="margin: 0; font-size: 24px; padding: 8px 12px; border-radius: 8px;">
+                    🧠
                 </button>
             </div>
         </div>
@@ -931,6 +928,24 @@
             </div>
             <div class="modal-footer">
                 <button class="modal-btn close" onclick="closeMemoryModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spot Statistics Modal -->
+    <div id="spotStatsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📊 Spot Statistics</h2>
+                <button class="modal-close" onclick="closeSpotStatsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="spotStatsContent">
+                    <p style="text-align: center; color: #666;">Loading spot statistics...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn close" onclick="closeSpotStatsModal()">Close</button>
             </div>
         </div>
     </div>
@@ -1203,6 +1218,123 @@
         function closeMemoryModal() {
             const modal = document.getElementById('memoryModal');
             modal.style.display = 'none';
+        }
+
+        function closeSpotStatsModal() {
+            const modal = document.getElementById('spotStatsModal');
+            modal.style.display = 'none';
+        }
+
+        async function showSpotStats() {
+            const modal = document.getElementById('spotStatsModal');
+            const content = document.getElementById('spotStatsContent');
+            
+            modal.style.display = 'block';
+            content.innerHTML = '<p style="text-align: center; color: #666;">Loading spot statistics...</p>';
+            
+            try {
+                const response = await fetch('/stats');
+                if (!response.ok) throw new Error('Failed to fetch stats');
+                
+                const stats = await response.json();
+                console.log('Spot stats data:', stats); // Debug log
+                
+                // Build spot statistics HTML
+                let html = '';
+                
+                // Overall Statistics Section
+                html += '<div class="analytics-section">';
+                html += '<h3>Overall Statistics</h3>';
+                html += '<div class="analytics-grid">';
+                
+                // Total entries
+                html += `<div class="analytics-stat" style="border-left-color: #667eea;">
+                    <div class="analytics-stat-label">Total Spots</div>
+                    <div class="analytics-stat-value">${stats.entries || 0}</div>
+                </div>`;
+                
+                // Cluster spots
+                html += `<div class="analytics-stat" style="border-left-color: #28a745;">
+                    <div class="analytics-stat-label">Cluster Spots</div>
+                    <div class="analytics-stat-value">${stats.cluster || 0}</div>
+                </div>`;
+                
+                // POTA spots
+                html += `<div class="analytics-stat" style="border-left-color: #ff9800;">
+                    <div class="analytics-stat-label">POTA Spots</div>
+                    <div class="analytics-stat-value">${stats.pota || 0}</div>
+                </div>`;
+                
+                // SOTA spots
+                html += `<div class="analytics-stat" style="border-left-color: #2196F3;">
+                    <div class="analytics-stat-label">SOTA Spots</div>
+                    <div class="analytics-stat-value">${stats.sota || 0}</div>
+                </div>`;
+                
+                // Oldest spot
+                if (stats.oldest) {
+                    const oldestDate = new Date(stats.oldest);
+                    const oldestAge = Math.round((Date.now() - oldestDate.getTime()) / 60000);
+                    html += `<div class="analytics-stat" style="border-left-color: #9e9e9e;">
+                        <div class="analytics-stat-label">Oldest Spot</div>
+                        <div class="analytics-stat-value" style="font-size: 14px;">${oldestAge} min ago</div>
+                    </div>`;
+                }
+                
+                // Freshest spot
+                if (stats.freshest) {
+                    const freshestDate = new Date(stats.freshest);
+                    const freshestAge = Math.round((Date.now() - freshestDate.getTime()) / 1000);
+                    html += `<div class="analytics-stat" style="border-left-color: #4CAF50;">
+                        <div class="analytics-stat-label">Freshest Spot</div>
+                        <div class="analytics-stat-value" style="font-size: 14px;">${freshestAge} sec ago</div>
+                    </div>`;
+                }
+                
+                html += '</div>';
+                html += '</div>';
+                
+                // Spots by Source Section
+                if (stats.sources) {
+                    html += '<div class="analytics-section">';
+                    html += '<h3>Spots by Source</h3>';
+                    html += '<div class="analytics-grid">';
+                    
+                    const sortedSources = Object.entries(stats.sources).sort((a, b) => b[1] - a[1]);
+                    
+                    sortedSources.forEach(([source, count]) => {
+                        let displayName = source.toUpperCase();
+                        let borderColor = '#667eea';
+                        
+                        if (source === 'pota') {
+                            displayName = 'POTA';
+                            borderColor = '#ff9800';
+                        } else if (source === 'sota') {
+                            displayName = 'SOTA';
+                            borderColor = '#2196F3';
+                        } else if (source === 'rbn') {
+                            displayName = 'RBN';
+                            borderColor = '#9c27b0';
+                        }
+                        
+                        const percentage = stats.entries > 0 ? ((count / stats.entries) * 100).toFixed(1) : 0;
+                        
+                        html += `<div class="analytics-stat" style="border-left-color: ${borderColor};">
+                            <div class="analytics-stat-label">${displayName}</div>
+                            <div class="analytics-stat-value">${count} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
+                        </div>`;
+                    });
+                    
+                    html += '</div>';
+                    html += '</div>';
+                }
+                
+                content.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Spot stats error:', error);
+                content.innerHTML = '<p style="text-align: center; color: #ff4444;">Failed to load spot statistics</p>';
+            }
         }
 
         async function showMemoryDetails() {
@@ -1619,58 +1751,12 @@
             }
         }
 
-        async function updateStats() {
-            try {
-                const response = await fetch('/stats');
-                if (!response.ok) throw new Error('Stats fetch failed');
-                
-                const stats = await response.json();
-                
-                // Update source statistics
-                const sourceStatsContainer = document.getElementById('sourceStats');
-                sourceStatsContainer.innerHTML = '';
-                
-                if (stats.sources) {
-                    Object.entries(stats.sources).forEach(([source, count]) => {
-                        const statItem = document.createElement('div');
-                        statItem.className = 'stat-item';
-                        
-                        // Determine the badge class
-                        let badgeClass = 'cluster';
-                        let displayName = source.toUpperCase();
-                        
-                        if (source === 'pota') {
-                            badgeClass = 'pota';
-                            displayName = 'POTA';
-                        } else if (source === 'sota') {
-                            badgeClass = 'sota';
-                            displayName = 'SOTA';
-                        } else if (source === 'rbn') {
-                            badgeClass = 'rbn';
-                            displayName = 'RBN';
-                        }
-                        
-                        statItem.innerHTML = `
-                            <span class="stat-label">${displayName}</span>
-                            <span class="stat-value small">${count}</span>
-                        `;
-                        sourceStatsContainer.appendChild(statItem);
-                    });
-                }
-                
-            } catch (error) {
-                console.error('Stats fetch error:', error);
-            }
-        }
-
         // Initialize WebSocket connection
         connectWebSocket();
 
-        // Update server health and stats immediately and every 10 seconds
+        // Update server health immediately and every 10 seconds
         updateServerHealth();
-        updateStats();
         setInterval(updateServerHealth, 10000);
-        setInterval(updateStats, 10000);
 
         // Update spots per minute every 5 seconds
         setInterval(() => {

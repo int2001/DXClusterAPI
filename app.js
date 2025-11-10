@@ -876,6 +876,35 @@ if (config.modeClassifierEnabled) {
 }
 
 // -----------------------------------
+// Helper Functions for Spot Management
+// -----------------------------------
+
+/**
+ * Binary search to find insertion point for a spot to maintain sorted order by timestamp
+ * @param {Array} arr - Array of spots sorted by timestamp (oldest first)
+ * @param {Object} spot - Spot to insert
+ * @returns {number} - Index where spot should be inserted
+ */
+function findInsertionIndex(arr, spot) {
+    const spotTime = Date.parse(spot.when);
+    let left = 0;
+    let right = arr.length;
+    
+    while (left < right) {
+        const mid = Math.floor((left + right) / 2);
+        const midTime = Date.parse(arr[mid].when);
+        
+        if (midTime < spotTime) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+    
+    return left;
+}
+
+// -----------------------------------
 // General Spot Handling
 // -----------------------------------
 
@@ -945,8 +974,19 @@ async function handlespot(spot, spot_source = "cluster") {
 		dxSpot.band = qrg2band(dxSpot.frequency * 1000);
 
 		// Check spot age - reject if too old
+		// RBN spots use shorter timeout from RBN_SPOT_TIMEOUT
+		// Regular spots use SPOT_MAX_AGE
 		const spotAge = Date.now() - Date.parse(dxSpot.when);
-		const maxAgeMs = config.spotMaxAge * 60 * 1000; // Convert minutes to milliseconds
+		let maxAgeMs;
+		
+		if (spot_source === "rbn") {
+			// RBN spots use the RBN-specific timeout
+			maxAgeMs = config.rbnSpotTimeout * 60 * 1000; // Convert minutes to milliseconds
+		} else {
+			// Regular spots (cluster, POTA, SOTA) use the general timeout
+			maxAgeMs = config.spotMaxAge * 60 * 1000; // Convert minutes to milliseconds
+		}
+		
 		if (spotAge > maxAgeMs) {
 			// Spot is too old, silently ignore it
 			return;
@@ -980,8 +1020,10 @@ async function handlespot(spot, spot_source = "cluster") {
 			}
 		}
 
-		//push spot to cache
-		spots.push(dxSpot);
+		// Insert spot in sorted position (by timestamp) using binary search
+		// This maintains the array sorted at all times, making eviction O(1)
+		const insertIndex = findInsertionIndex(spots, dxSpot);
+		spots.splice(insertIndex, 0, dxSpot);
 
 		// Update indexes (including spotKeyIndex)
 		updateIndexes(dxSpot);
@@ -992,12 +1034,17 @@ async function handlespot(spot, spot_source = "cluster") {
 		}
 
 		// Empty out spots if maximum cache is reached
-		// Remove the OLDEST spot by timestamp (optimized)
-		if (spots.length > config.maxcache) {
-			// Sort once to find oldest, then remove
-			spots.sort((a, b) => Date.parse(a.when) - Date.parse(b.when));
-			const oldestSpot = spots.shift(); // Remove first (oldest) element
-			removeFromIndexes(oldestSpot);
+		// Remove oldest 10% in batch (they're already at the beginning due to sorted order)
+		if (spots.length >= config.maxcache) {
+			const batchSize = Math.max(Math.floor(config.maxcache * 0.1), 10); // Remove at least 10 spots
+			
+			// Remove oldest batch from beginning (no sorting needed - array is already sorted!)
+			const removedSpots = spots.splice(0, batchSize);
+			
+			// Clean up indexes
+			removedSpots.forEach(spot => removeFromIndexes(spot));
+			
+			console.log(`Cache full (${config.maxcache}): removed ${batchSize} oldest spots, now ${spots.length} spots`);
 		}
 		
 	} catch(e) { 
