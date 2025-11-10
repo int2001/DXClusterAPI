@@ -407,7 +407,6 @@ function getApiInfo() {
     if (config.analyticsEnabled) {
         endpoints.analytics = config.baseUrl + '/analytics';
     }
-    endpoints.test = config.baseUrl + '/test';
     endpoints.info = config.baseUrl + '/info';
     
     // Only include demo endpoint if enabled
@@ -458,20 +457,6 @@ if (config.demoEnabled) {
 } else {
     console.log('Demo page disabled');
 }
-
-// Test page - always available for endpoint testing with no-cache headers
-app.get(config.baseUrl + '/test', (req, res) => {
-    // Prevent caching
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, private');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    
-    // Prevent search engine indexing
-    res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet');
-    
-    res.sendFile(path.join(__dirname, 'public', 'test.html'));
-});
-console.log('Test page enabled at ' + config.baseUrl + '/test');
 
 // API Analytics endpoint - shows who is using the API
 app.get(config.baseUrl + '/analytics', (req, res) => {

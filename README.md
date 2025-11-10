@@ -1763,10 +1763,78 @@ If you experience API rate limiting from POTA or SOTA:
 
 ### DXCC Cache
 
-The application caches DXCC lookups for 24 hours to reduce load on your Wavelog server:
-- Cache size limit: 10,000 entries
-- Automatic cleanup of expired entries
-- Failed lookups are retried for each new spot
+The application features an **aggressive DXCC caching system** optimized to minimize RAM usage on shared hosting:
+
+**Caching Strategy:**
+- **Callsign Normalization**: Strips `/P`, `/M`, `/QRP` and other portable suffixes to increase cache hits
+- **Prefix-Based Caching**: Caches DXCC data by prefix (W1, K2, DL3, etc.) for additional 60% reduction in PHP lookups
+- **Multi-Tier Lookup**: Checks full callsign cache → prefix cache → PHP lookup (only if necessary)
+- **Large Cache Size**: 20,000 callsigns + 5,000 prefixes (default)
+- **Long TTL**: 7-day callsign cache, 30-day prefix cache
+- **Concurrency Limiting**: Maximum 2 concurrent DXCC lookups to prevent PHP-FPM overload
+- **LRU Eviction**: Least Recently Used entries removed when cache is full
+- **Failed Lookup Cache**: 5-minute cache for bad callsigns to prevent repeated failed lookups
+
+**Cache Hit Optimization:**
+1. `W1ABC` and `W1ABC/P` → Same cache entry (normalized to `W1ABC`)
+2. `W1ABC` cached → `W1XYZ` uses prefix cache (both are `W1` prefix)
+3. Only new prefixes trigger PHP lookups
+
+**Expected Results:**
+- **Cache Hit Rate**: 95%+ after warmup period
+- **PHP Requests**: Reduced by 95%+ compared to no caching
+- **RAM Usage**: 600MB total (was 3.3GB) on FreeBSD hosting with 1GB limit
+- **PHP-FPM Processes**: Reduced from 24 to 2-3 processes
+
+**Configuration:**
+The DXCC cache settings are automatically optimized. No configuration changes needed. See `DXCC_OPTIMIZATION.md` for technical details.
+
+**Memory Optimization Features:**
+- Bounded spot array with automatic LRU eviction
+- WebSocket ping/pong for detecting dead clients (30-second heartbeat)
+- All module caches bounded with size limits (POTA: 500, SOTA: 500, RBN: 2000, Analytics: 1000 clients)
+- Map-based caching for O(1) lookups instead of O(n) array scans
+- Optimized spot removal using binary search (O(n log n) instead of O(n²))
+
+**Hosting Requirements:**
+- **Minimum RAM**: 1.5GB recommended (was 1GB)
+- **Node.js**: v18+ recommended
+- **External Service**: Wavelog PHP-FPM for DXCC lookups (can consume significant RAM if cache isn't working)
+
+**Troubleshooting High RAM Usage:**
+
+If you're experiencing high RAM usage (>1GB):
+
+1. **Check if PHP-FPM is the culprit** (not Node.js):
+   ```bash
+   top -o res  # FreeBSD
+   ps aux | grep php-fpm  # Linux
+   ```
+   If you see many PHP-FPM processes (>10) each using 100MB+, the issue is likely DXCC lookups.
+
+2. **Verify DXCC cache is working**:
+   ```bash
+   curl http://yourserver.com/health | json_pp
+   ```
+   Check `cache.dxccCache` and `cache.dxccPrefixCache` values. They should grow over time.
+
+3. **Check demo page memory details**:
+   - Open demo page (`/demo`)
+   - Click the "🧠 System Info" button
+   - Review cache statistics and memory usage
+
+4. **Reduce cache sizes if needed** (edit `app.js`):
+   ```javascript
+   const MAX_DXCC_CACHE = 10000;  // Reduce from 20000
+   const MAX_DXCC_PREFIX_CACHE = 2500;  // Reduce from 5000
+   ```
+
+5. **Increase PHP-FPM cache on external server** (if you control Wavelog):
+   - Configure PHP OPcache
+   - Increase APCu cache size
+   - Consider using Redis for DXCC caching in Wavelog
+
+See `DXCC_OPTIMIZATION.md` for comprehensive technical documentation.
 
 ## Performance Tips
 

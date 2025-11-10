@@ -44,6 +44,14 @@
             flex-direction: column;
         }
 
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .container {
+                margin: 5px;
+                border-radius: 5px;
+            }
+        }
+
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -57,6 +65,20 @@
         .header h1 {
             font-size: 20px;
             font-weight: 600;
+        }
+
+        /* Responsive header */
+        @media (max-width: 768px) {
+            .header {
+                padding: 10px 15px;
+                flex-wrap: wrap;
+            }
+            
+            .header h1 {
+                font-size: 16px;
+                flex: 1 1 100%;
+                margin-bottom: 8px;
+            }
         }
 
         .status {
@@ -112,6 +134,43 @@
             border-bottom: 1px solid #e0e0e0;
             flex-wrap: wrap;
             flex-shrink: 0;
+        }
+
+        /* Responsive stats */
+        @media (max-width: 1200px) {
+            .stats {
+                padding: 10px 15px;
+                gap: 15px;
+            }
+            
+            .server-info {
+                padding-left: 15px;
+                margin-left: 0;
+                border-left: none;
+                border-top: 2px solid #e0e0e0;
+                padding-top: 10px;
+                flex: 1 1 100%;
+            }
+            
+            .page-stats {
+                border-right: none;
+                padding-right: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .stats {
+                padding: 8px 10px;
+                gap: 10px;
+            }
+            
+            .stat-value {
+                font-size: 16px;
+            }
+            
+            .stat-label {
+                font-size: 10px;
+            }
         }
 
         .stat-item {
@@ -661,6 +720,90 @@
             color: #667eea;
             font-weight: 600;
         }
+        
+        /* Additional Responsive Styles */
+        @media (max-width: 768px) {
+            /* Make table scrollable on mobile */
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            table {
+                font-size: 12px;
+                min-width: 600px;
+            }
+            
+            th, td {
+                padding: 6px 4px;
+            }
+            
+            /* Modal adjustments for mobile */
+            .modal-content {
+                width: 95%;
+                max-height: 90vh;
+                margin: 5vh auto;
+            }
+            
+            .modal-header h2 {
+                font-size: 18px;
+            }
+            
+            .modal-body {
+                padding: 15px;
+            }
+            
+            /* Analytics grid responsive */
+            .analytics-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .analytics-stat-value {
+                font-size: 18px;
+            }
+            
+            /* Footer adjustments */
+            footer {
+                font-size: 12px;
+                padding: 15px 10px;
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .footer-links {
+                justify-content: center;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 20px;
+            }
+            
+            .stat-value {
+                font-size: 14px;
+            }
+            
+            .stat-label {
+                font-size: 9px;
+            }
+            
+            button {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            
+            .modal-content {
+                width: 98%;
+                max-height: 95vh;
+                margin: 2.5vh auto;
+            }
+        }
     </style>
 </head>
 <body>
@@ -694,43 +837,9 @@
                 </div>
             </div>
             <div class="server-info">
-                <div class="server-info-label">Instance Information:</div>
-                <div class="server-info-stats">
-                    <div class="stat-item">
-                        <span class="stat-label">Version</span>
-                        <span class="stat-value small" id="version">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Cache Limit</span>
-                        <span class="stat-value small" id="cacheLimit">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Cache</span>
-                        <span class="stat-value small" id="cacheSize">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Modules</span>
-                        <span class="stat-value small" id="modules">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Clusters</span>
-                        <span class="stat-value small" id="clusterCount">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Uptime</span>
-                        <span class="stat-value small" id="uptime">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Memory</span>
-                        <span class="stat-value small" id="memory">-</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Details</span>
-                        <button class="analytics-icon" onclick="showMemoryDetails()" title="View Memory Details" style="margin: 0; font-size: 14px; padding: 4px 8px;">
-                            🧠
-                        </button>
-                    </div>
-                </div>
+                <button class="analytics-icon" onclick="showMemoryDetails()" title="View System & Memory Details" style="margin: 0; font-size: 24px; padding: 8px 16px; border-radius: 8px;">
+                    🧠 System Info
+                </button>
             </div>
         </div>
 
@@ -763,7 +872,6 @@
             <div>
                 <strong>DXClusterAPI</strong> v<span id="footerVersion">2.0.0</span> - 
                 <a href="https://github.com/int2001/DXClusterAPI" target="_blank">GitHub Repository</a> |
-                <a href="/test" target="_blank">Test Suite</a> |
                 <a href="/info" target="_blank">API Info</a>
             </div>
             <div>
@@ -1181,6 +1289,12 @@
                         <div class="analytics-stat-value">${health.cache.dxccCache || 0}</div>
                     </div>`;
                     
+                    // DXCC Prefix Cache
+                    html += `<div class="analytics-stat" style="border-left-color: #20c997;">
+                        <div class="analytics-stat-label">DXCC Prefix Cache</div>
+                        <div class="analytics-stat-value">${health.cache.dxccPrefixCache || 0}</div>
+                    </div>`;
+                    
                     // Band Index
                     html += `<div class="analytics-stat" style="border-left-color: #17a2b8;">
                         <div class="analytics-stat-label">Band Index</div>
@@ -1239,6 +1353,21 @@
                     <div class="analytics-stat-label">Run Mode</div>
                     <div class="analytics-stat-value" style="font-size: 16px;">${health.mode || 'Unknown'}</div>
                 </div>`;
+                
+                // Cache Limit
+                html += `<div class="analytics-stat">
+                    <div class="analytics-stat-label">Cache Limit</div>
+                    <div class="analytics-stat-value" style="font-size: 16px;">${(health.cache?.maxcache || 0).toLocaleString()}</div>
+                </div>`;
+                
+                // Active Modules
+                if (health.modules) {
+                    const moduleCount = Object.keys(health.modules).length;
+                    html += `<div class="analytics-stat">
+                        <div class="analytics-stat-label">Active Modules</div>
+                        <div class="analytics-stat-value" style="font-size: 16px;">${moduleCount}</div>
+                    </div>`;
+                }
                 
                 // Active Clusters
                 if (health.modules?.cluster) {
