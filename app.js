@@ -554,6 +554,15 @@ app.get(config.baseUrl + '/stats', (req, res) => {
         }
     });
     
+    // Build DE continent breakdown (spotter's continent)
+    const continents_de = {};
+    spots.forEach(spot => {
+        if (spot.dxcc_spotter && spot.dxcc_spotter.cont) {
+            const cont = spot.dxcc_spotter.cont;
+            continents_de[cont] = (continents_de[cont] || 0) + 1;
+        }
+    });
+    
     // Legacy counts (for backward compatibility)
     const clusterSpots = spots.filter(item => 
         item.source !== 'pota' && item.source !== 'sota'
@@ -567,6 +576,7 @@ app.get(config.baseUrl + '/stats', (req, res) => {
         sources: sources,  // Per-source breakdown
         modeTypes: modeTypes,  // Mode type breakdown (phone/digi/cw)
         continents: continents,  // DX continent breakdown
+        continents_de: continents_de,  // DE (spotter) continent breakdown
         freshest: getFreshestSpot(spots),
         oldest: getOldestSpot(spots)
     };

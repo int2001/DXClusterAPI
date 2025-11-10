@@ -223,8 +223,9 @@
 
         .server-info {
             display: flex;
-            flex-direction: column;
-            gap: 5px;
+            flex-direction: row;
+            gap: 8px;
+            align-items: center;
             margin-left: auto;
             padding-left: 30px;
             border-left: 2px solid #e0e0e0;
@@ -838,14 +839,14 @@
                     <span class="stat-value" id="spotsPerMin">0</span>
                 </div>
             </div>
-            <div class="server-info" style="display: flex; gap: 8px; align-items: center;">
-                <button class="analytics-icon" onclick="showSpotStats()" title="View Spot Statistics" style="margin: 0; font-size: 24px; padding: 8px 12px; border-radius: 8px;">
+            <div class="server-info">
+                <button class="analytics-icon" onclick="showSpotStats()" title="View Spot Statistics">
                     📊
                 </button>
-                <button class="analytics-icon" onclick="showAnalytics()" title="View API Usage Analytics" style="margin: 0; font-size: 24px; padding: 8px 12px; border-radius: 8px;">
+                <button class="analytics-icon" onclick="showAnalytics()" title="View API Usage Analytics">
                     📈
                 </button>
-                <button class="analytics-icon" onclick="showMemoryDetails()" title="View System & Memory Details" style="margin: 0; font-size: 24px; padding: 8px 12px; border-radius: 8px;">
+                <button class="analytics-icon" onclick="showMemoryDetails()" title="View System & Memory Details">
                     🧠
                 </button>
             </div>
@@ -1310,11 +1311,11 @@
                             html += '<h3>Spots by Band</h3>';
                             html += '<div class="analytics-grid">';
                             
-                            // Sort by count descending
-                            const sortedBands = bandsData.data.sort((a, b) => b.count - a.count);
+                            // Sort by spots descending
+                            const sortedBands = bandsData.data.sort((a, b) => b.spots - a.spots);
                             
                             sortedBands.forEach(item => {
-                                const percentage = stats.entries > 0 ? ((item.count / stats.entries) * 100).toFixed(1) : 0;
+                                const percentage = stats.entries > 0 ? ((item.spots / stats.entries) * 100).toFixed(1) : 0;
                                 
                                 // Color coding by band
                                 let borderColor = '#667eea';
@@ -1332,7 +1333,7 @@
                                 
                                 html += `<div class="analytics-stat" style="border-left-color: ${borderColor};">
                                     <div class="analytics-stat-label">${item.band}</div>
-                                    <div class="analytics-stat-value">${item.count} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
+                                    <div class="analytics-stat-value">${item.spots} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
                                 </div>`;
                             });
                             
@@ -1413,6 +1414,51 @@
                     const sortedContinents = Object.entries(stats.continents).sort((a, b) => b[1] - a[1]);
                     
                     sortedContinents.forEach(([cont, count]) => {
+                        const percentage = stats.entries > 0 ? ((count / stats.entries) * 100).toFixed(1) : 0;
+                        const label = continentLabels[cont] || cont;
+                        const color = continentColors[cont] || '#667eea';
+                        
+                        html += `<div class="analytics-stat" style="border-left-color: ${color};">
+                            <div class="analytics-stat-label">${label} (${cont})</div>
+                            <div class="analytics-stat-value">${count} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
+                        </div>`;
+                    });
+                    
+                    html += '</div>';
+                    html += '</div>';
+                }
+                
+                // Spots by DE (Spotter) Continent Section
+                if (stats.continents_de && Object.keys(stats.continents_de).length > 0) {
+                    html += '<div class="analytics-section">';
+                    html += '<h3>Spots by DE Continent</h3>';
+                    html += '<div class="analytics-grid">';
+                    
+                    // Continent labels and colors (same as DX)
+                    const continentLabels = {
+                        'NA': 'North America',
+                        'SA': 'South America',
+                        'EU': 'Europe',
+                        'AF': 'Africa',
+                        'AS': 'Asia',
+                        'OC': 'Oceania',
+                        'AN': 'Antarctica'
+                    };
+                    
+                    const continentColors = {
+                        'NA': '#4CAF50',   // Green
+                        'SA': '#FF9800',   // Orange
+                        'EU': '#2196F3',   // Blue
+                        'AF': '#9C27B0',   // Purple
+                        'AS': '#F44336',   // Red
+                        'OC': '#00BCD4',   // Cyan
+                        'AN': '#607D8B'    // Blue Gray
+                    };
+                    
+                    // Sort by count descending
+                    const sortedDEContinents = Object.entries(stats.continents_de).sort((a, b) => b[1] - a[1]);
+                    
+                    sortedDEContinents.forEach(([cont, count]) => {
                         const percentage = stats.entries > 0 ? ((count / stats.entries) * 100).toFixed(1) : 0;
                         const label = continentLabels[cont] || cont;
                         const color = continentColors[cont] || '#667eea';
