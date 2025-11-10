@@ -290,6 +290,9 @@ class APIv2 {
                 // Apply filters
                 let filtered = this.filterSpots(spots, filters);
                 
+                // Reverse to newest-first for consistent API behavior
+                filtered.reverse();
+                
                 // Pagination
                 const offset = parseInt(filters.offset) || 0;
                 const total = filtered.length;
@@ -303,7 +306,7 @@ class APIv2 {
                     limit = this.apiSpotLimit;
                 }
                 
-                // Apply pagination
+                // Apply pagination (now on reversed/newest-first array)
                 filtered = filtered.slice(offset, offset + limit);
                 
                 res.json(this.formatResponse({
