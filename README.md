@@ -171,6 +171,31 @@ API_V1_ENABLED=true
 ```bash
 API_V2_ENABLED=true
 API_V2_KEY=  # Leave empty for open access
+API_SPOT_LIMIT=200  # Maximum spots returned by API endpoints (default limit)
+```
+
+### API Spot Limit Configuration
+- **Spot Limit** (`API_SPOT_LIMIT`): Default maximum number of spots returned by API endpoints
+  - Default: `200`
+  - Applies to API v1 `/spots` (always enforced)
+  - Applies to API v2 `/spots` (when `limit` parameter not specified)
+  - Spots are sorted by timestamp (newest first)
+  - Recommended: 100-500 depending on client needs
+  - API v2 can override with `?limit=N` parameter (max 500)
+
+**Example:**
+```bash
+API_SPOT_LIMIT=200  # Default limit for both API v1 and v2
+```
+
+### API v1 Configuration
+- **Enabled** (`API_V1_ENABLED`): Enable/disable legacy API v1 endpoints
+  - Default: `true`
+  - Includes: `/spots`, `/spots/:band`, `/spots/source/:source`, `/spot/:qrg`
+
+**Example:**
+```bash
+API_V1_ENABLED=true
 ```
 
 ### Cluster Module (`CLUSTER_ENABLED`)
@@ -539,7 +564,12 @@ Access at `http://yourserver.com/demo` (or `http://yourserver.com/demo/index.htm
 GET /spots
 ```
 
-Returns all cached spots with DXCC information.
+Returns the latest cached spots with DXCC information, sorted by timestamp (newest first). The number of spots returned is limited by the `API_SPOT_LIMIT` environment variable (default: 200).
+
+**Configuration:**
+- Set `API_SPOT_LIMIT` in `.env` to change the limit (default: 200)
+- Spots are automatically sorted by timestamp, newest first
+- This ensures consistent response size and optimal performance
 
 **Example response:**
 ```json
@@ -582,6 +612,8 @@ Returns all cached spots with DXCC information.
   }
 ]
 ```
+
+**Note:** For more advanced filtering and pagination, use [API v2 endpoints](#api-v2-endpoints-modern-rest) which support query parameters like `limit`, `offset`, `band`, `continent`, `maxAge`, etc.
 
 **Spot Metadata Enrichment:**
 
@@ -994,8 +1026,14 @@ Returns all spots matching the specified filters. All filters are passed as **UR
 | `sota` | boolean | Filter SOTA spots (true/false) | `?sota=true` |
 | `iota` | boolean | Filter IOTA spots (true/false) | `?iota=true` |
 | `wwff` | boolean | Filter WWFF spots (true/false) | `?wwff=true` |
-| `limit` | number | Maximum spots to return (default: 100, max: 500) | `?limit=50` |
+| `limit` | number | Maximum spots to return (default: `API_SPOT_LIMIT` from config, max: 500) | `?limit=50` |
 | `offset` | number | Number of spots to skip (for pagination) | `?offset=100` |
+
+**Default Behavior:**
+- If `limit` is **not specified**: Returns up to `API_SPOT_LIMIT` spots (default: 200)
+- If `limit` is **specified**: Returns up to the specified amount (max: 500)
+- Use `limit=500` to get maximum spots per request
+- Spots are sorted by timestamp (newest first)
 
 **Examples:**
 

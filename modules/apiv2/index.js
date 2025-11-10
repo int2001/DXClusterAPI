@@ -23,6 +23,7 @@ class APIv2 {
         this.version = config.version || '2.0.0';
         this.getSpotsData = config.getSpotsData || (() => []);
         this.requireAuth = this.apiKey.length > 0;
+        this.apiSpotLimit = config.apiSpotLimit || 200; // Default spot limit for /spots endpoint
         
         // Heatmap cache (15-minute TTL)
         this.heatmapCache = null;
@@ -293,16 +294,17 @@ class APIv2 {
                 const offset = parseInt(filters.offset) || 0;
                 const total = filtered.length;
                 
-                // Only apply limit if explicitly provided, otherwise return all
+                // Apply limit: use provided limit, or default limit, max 500
                 let limit;
                 if (filters.limit !== undefined) {
                     limit = Math.min(parseInt(filters.limit), 500);
-                    filtered = filtered.slice(offset, offset + limit);
                 } else {
-                    // No limit specified - return all (from offset if specified)
-                    filtered = filtered.slice(offset);
-                    limit = null;
+                    // No limit specified - use default API_SPOT_LIMIT
+                    limit = this.apiSpotLimit;
                 }
+                
+                // Apply pagination
+                filtered = filtered.slice(offset, offset + limit);
                 
                 res.json(this.formatResponse({
                     success: true,

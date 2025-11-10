@@ -91,11 +91,19 @@ class APIv1 {
         });
 
         /**
-         * GET /spots - Retrieve all cached spots
+         * GET /spots - Retrieve cached spots (limited to latest N spots, sorted by timestamp)
+         * Limit is configurable via API_SPOT_LIMIT environment variable (default: 200)
          */
         router.get(baseUrl + '/spots', rateLimiter || ((req, res, next) => next()), (req, res) => {
             const spots = this.getSpotsData();
-            res.json(spots);
+            const limit = this.config.apiSpotLimit || 200;
+            
+            // Return the latest N spots (spots array is already sorted oldest-first)
+            // So we slice from the end to get the newest spots
+            const limitedSpots = spots.length > limit ? spots.slice(-limit) : spots;
+            
+            // Reverse to show newest first (most recent at top)
+            res.json(limitedSpots.reverse());
         });
 
         /**

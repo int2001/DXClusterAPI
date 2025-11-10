@@ -110,6 +110,7 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         apiv1Enabled: process.env.API_V1_ENABLED !== 'false',
         apiv2Enabled: process.env.API_V2_ENABLED !== 'false',
         apiv2Key: process.env.API_V2_KEY || '',
+        apiSpotLimit: parseInt(process.env.API_SPOT_LIMIT) || 200,
         
         // WebSocket configuration
         websocketEnabled: process.env.WEBSOCKET_ENABLED !== 'false',
@@ -381,7 +382,8 @@ const apiv2 = new APIv2({
     enabled: config.apiv2Enabled,
     apiKey: config.apiv2Key,
     version: APP_VERSION,
-    getSpotsData: () => spots
+    getSpotsData: () => spots,
+    apiSpotLimit: config.apiSpotLimit
 });
 
 // Mount API v2 router if enabled
