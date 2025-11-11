@@ -1433,7 +1433,8 @@ async function dxcc_lookup(call) {
             cached.accessCount = (cached.accessCount || 0) + 1;
             cached.timestamp = Date.now(); // Refresh timestamp on access
             dxccCache.set(normalizedCall, cached);
-            return cached.data;
+            // Return a shallow copy to prevent cache pollution from POTA/SOTA/enrichment data
+            return { ...cached.data };
         } else {
             // Expired, remove from cache
             dxccCache.delete(normalizedCall);
