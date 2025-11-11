@@ -6,7 +6,7 @@
  */
 
 const events = require('events');
-const { sleepNow, getAllowedDeviation } = require('../../lib/utils');
+const { sleepNow, getAllowedDeviation, normalizeFrequency } = require('../../lib/utils');
 
 module.exports = class POTASpots extends events.EventEmitter {
   
@@ -55,8 +55,11 @@ module.exports = class POTASpots extends events.EventEmitter {
 				  if (!callsignRegex.test(String(item.spotter).trim())) return;
 				  if (!callsignRegex.test(String(item.activator).trim())) return;
 				  
+				  // Normalize frequency to consistent kHz format (1 decimal place)
+				  // Fixes issue from Wavelog PR #2514: inconsistent frequency format
+				  const freq = normalizeFrequency(item.frequency);
+				  
 				  // Safety: Validate frequency range
-				  const freq = parseFloat(item.frequency);
 				  if (isNaN(freq) || freq < 30 || freq > 300000000) return;
 				  
 				  // Safety: Sanitize text fields

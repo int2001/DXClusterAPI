@@ -14,7 +14,7 @@ const APIv1 = require('./modules/apiv1');
 const APIv2 = require('./modules/apiv2');
 const Metrics = require('./modules/metrics');
 const RateLimiter = require('./modules/rate-limiter');
-const { toUcWord, qrg2band, getFreshestSpot, getOldestSpot } = require('./lib/utils');
+const { toUcWord, qrg2band, getFreshestSpot, getOldestSpot, normalizeFrequency } = require('./lib/utils');
 const express = require("express");
 const app = express();
 const path = require("path");
@@ -928,16 +928,37 @@ function findInsertionIndex(arr, spot) {
 // -----------------------------------
 
 /**
+ * Generates a consistent spotKey for deduplication
+ * @param {Object} spot - The spot object
+ * @returns {string} - The spotKey for indexing
+ */
+function generateSpotKey(spot) {
+    if (spot.source === "rbn" && spot.dxcc_spotter && spot.dxcc_spotter.cont) {
+        return `rbn_${spot.spotted}_${spot.dxcc_spotter.cont}`;
+    } else {
+        return `${spot.frequency}_${spot.spotted}_${spot.spotter}`;
+    }
+}
+
+/**
  * Processes spots received from different sources and may add additional data points
  */
 async function handlespot(spot, spot_source = "cluster") {
 
 	try {
+		// Normalize frequency for consistency (based on Wavelog PR #2514)
+		// All frequencies should be in kHz with 1 decimal place
+		const normalizedFreq = normalizeFrequency(spot.frequency);
+		if (isNaN(normalizedFreq)) {
+			console.warn(`Invalid frequency for spot from ${spot.spotter}: ${spot.frequency}`);
+			return;
+		}
+		
 		//construct a clean spot
 		let dxSpot = {
 			spotter: spot.spotter,
 			spotted: spot.spotted,
-			frequency: spot.frequency,
+			frequency: normalizedFreq,  // Use normalized frequency
 			message: spot.message,
 			when: spot.when,	
 			source: spot_source,	
@@ -983,10 +1004,19 @@ async function handlespot(spot, spot_source = "cluster") {
 		}
 		
 		// Apply mode classification if enabled
+		// This is the single source of truth for mode/submode (Wavelog PR #2514)
+		// Mode classification must happen AFTER enrichment so it can use
+		// program-specific modes (POTA/SOTA) which are highest priority
 		if (modeClassifier) {
 			const classification = modeClassifier.classifySpot(dxSpot);
 			dxSpot.mode = classification.mode;
 			dxSpot.submode = classification.submode;
+			// Optional: store confidence for debugging
+			// dxSpot.modeConfidence = classification.confidence;
+		} else {
+			// Fallback if mode classifier is disabled
+			dxSpot.mode = null;
+			dxSpot.submode = null;
 		}
 		
 		//lookup band
@@ -1012,13 +1042,8 @@ async function handlespot(spot, spot_source = "cluster") {
 		}
 
 		// Check for duplicate spot using O(1) index lookup
-		// For RBN spots, use continent-based key to allow only one spot per continent per callsign
-		let spotKey;
-		if (spot_source === "rbn" && dxSpot.dxcc_spotter && dxSpot.dxcc_spotter.cont) {
-			spotKey = `rbn_${dxSpot.spotted}_${dxSpot.dxcc_spotter.cont}`;
-		} else {
-			spotKey = `${dxSpot.frequency}_${dxSpot.spotted}_${dxSpot.spotter}`;
-		}
+		// Uses helper function for consistent key generation
+		const spotKey = generateSpotKey(dxSpot);
 		const existingSpot = spotKeyIndex.get(spotKey);
 
 		if (existingSpot) {
@@ -1133,6 +1158,7 @@ function updateIndexes(spot) {
     }
 
     // Update frequency index (keep only latest spot per frequency)
+    // Frequency is already normalized in handlespot, ensuring consistency
     const existing = frequencyIndex.get(spot.frequency);
     if (!existing || Date.parse(spot.when) > Date.parse(existing.when)) {
         frequencyIndex.set(spot.frequency, spot);
@@ -1147,13 +1173,8 @@ function updateIndexes(spot) {
     }
 
     // Update spotKey index for O(1) duplicate detection
-    // For RBN spots, use continent-based key
-    let spotKey;
-    if (spot.source === "rbn" && spot.dxcc_spotter && spot.dxcc_spotter.cont) {
-        spotKey = `rbn_${spot.spotted}_${spot.dxcc_spotter.cont}`;
-    } else {
-        spotKey = `${spot.frequency}_${spot.spotted}_${spot.spotter}`;
-    }
+    // Uses helper function to ensure consistency
+    const spotKey = generateSpotKey(spot);
     spotKeyIndex.set(spotKey, spot);
     
     // Update statistics indexes
@@ -1209,7 +1230,7 @@ function removeFromIndexes(spot) {
     }
 
     // Remove from spotKey index
-    const spotKey = `${spot.frequency}_${spot.spotted}_${spot.spotter}`;
+    const spotKey = generateSpotKey(spot);
     spotKeyIndex.delete(spotKey);
     
     // Update statistics indexes

@@ -22,7 +22,11 @@ class ModeClassifier {
             WSJT: ['FT8', 'FT4', 'JT65', 'JT65B', 'JT6C', 'JT6M', 'JT9', 'JT9-1', 
                    'Q65', 'QRA64', 'FST4', 'FST4W', 'WSPR', 'MSK144', 'ISCAT',
                    'ISCAT-A', 'ISCAT-B', 'JS8', 'JTMS', 'FSK441', 'JT4', 'OPERA'],
-            PSK: ['PSK', 'QPSK', '8PSK', 'PSK31', 'PSK63', 'PSK125', 'PSK250'],
+            // Enhanced PSK mode list from Wavelog PR #2514
+            PSK: ['PSK', 'QPSK', '8PSK', 'PSK31', 'PSK63', 'PSK125', 'PSK250', 'PSK500',
+                  'BPSK31', 'BPSK63', 'BPSK125', 'BPSK250', 'QPSK31', 'QPSK63', 'QPSK125',
+                  '8PSK125', '8PSK250', '8PSK500', '8PSK1000', 'PSK10', 'PSK1000',
+                  'PSKAM', 'PSKAM10', 'PSKAM31', 'PSKAM50', 'PSKFEC31'],
             DIGITAL_OTHER: ['RTTY', 'NAVTEX', 'SITORB', 'DIGI', 'DYNAMIC', 'RTTYFSK', 'RTTYM'],
             DIGITAL_MODES: ['OLIVIA', 'CONTESTIA', 'THOR', 'THROB', 'MFSK', 'MFSK8', 'MFSK16',
                            'HELL', 'MT63', 'DOMINO', 'PACKET', 'PACTOR', 'CLOVER', 'AMTOR',
@@ -46,6 +50,12 @@ class ModeClassifier {
 
     /**
      * Classify a spot's mode and submode
+     * Priority order (based on Wavelog PR #2514):
+     * 1. Program-specific modes (POTA/SOTA/WWFF/IOTA) - most reliable
+     * 2. Message content (especially RBN)
+     * 3. Explicit mode field
+     * 4. Frequency-based guess (band plan)
+     * 
      * @param {Object} spot - Spot object with frequency, message, and optional mode fields
      * @returns {Object} {mode: 'cw'|'phone'|'digi', submode: 'CW'|'USB'|'FT8'|etc, confidence: 0-1}
      */
@@ -57,13 +67,26 @@ class ModeClassifier {
         this.stats.classified++;
 
         // Priority 1: Check for program-specific modes (POTA, SOTA, WWFF, IOTA)
+        // These are most reliable as they come directly from activators
+        // Fixes Wavelog PR #2514 issues with POTA/SOTA SSB mode handling
         if (spot.dxcc_spotted) {
             const programMode = spot.dxcc_spotted.pota_mode || 
                                spot.dxcc_spotted.sota_mode || 
                                spot.dxcc_spotted.wwff_mode || 
                                spot.dxcc_spotted.iota_mode;
             
-            if (programMode) {
+            if (programMode && programMode.trim() !== '') {
+                this.stats.fromProgramMode++;
+                return this.classifyFromModeField(programMode, spot.frequency);
+            }
+        }
+        
+        // Also check additional_data for backward compatibility
+        if (spot.additional_data) {
+            const programMode = spot.additional_data.pota_mode || 
+                               spot.additional_data.sota_mode;
+            
+            if (programMode && programMode.trim() !== '') {
                 this.stats.fromProgramMode++;
                 return this.classifyFromModeField(programMode, spot.frequency);
             }
@@ -150,20 +173,22 @@ class ModeClassifier {
 
     /**
      * Classify mode from explicit mode field
+     * Enhanced for Wavelog PR #2514: better SSB/LSB/USB handling for POTA/SOTA
      */
     classifyFromModeField(modeField, frequency) {
-        const modeUpper = modeField.toUpperCase();
+        const modeUpper = modeField.toUpperCase().trim();
 
         // CW modes
         if (this.modes.CW.includes(modeUpper)) {
             return { mode: 'cw', submode: 'CW', confidence: 1.0 };
         }
 
-        // Phone modes
+        // Phone modes - enhanced SSB handling
         if (this.modes.PHONE.includes(modeUpper)) {
             let submode = modeUpper;
             
             // For generic SSB/PHONE, determine LSB/USB from frequency
+            // This is critical for POTA/SOTA spots per Wavelog PR #2514
             if (modeUpper === 'SSB' || modeUpper === 'PHONE') {
                 submode = this.determineSSBMode(frequency);
             }
@@ -176,8 +201,14 @@ class ModeClassifier {
             return { mode: 'digi', submode: modeUpper, confidence: 1.0 };
         }
 
-        // PSK family
+        // PSK family - enhanced with more variants per Wavelog PR #2514
         if (this.modes.PSK.some(m => modeUpper.includes(m))) {
+            // Try to find exact match first
+            const exactMatch = this.modes.PSK.find(m => modeUpper === m);
+            if (exactMatch) {
+                return { mode: 'digi', submode: exactMatch, confidence: 1.0 };
+            }
+            // Otherwise use the input mode
             return { mode: 'digi', submode: modeUpper, confidence: 1.0 };
         }
 

@@ -8,7 +8,7 @@
 "use strict";
 
 const events = require("events");
-const { sleepNow, getAllowedDeviation, toKHz } = require('../../lib/utils');
+const { sleepNow, getAllowedDeviation, toKHz, normalizeFrequency } = require('../../lib/utils');
 
 // Prefer global fetch (Node 18+) or fall back to node-fetch
 const fetch = (global.fetch ? global.fetch : require("node-fetch"));
@@ -70,9 +70,13 @@ module.exports = class SOTASpots extends events.EventEmitter {
 
           // SOTA API provides MHz strings like "10.111"
           const freqKHz = toKHz(item.frequency);
+          
+          // Normalize frequency to consistent kHz format (1 decimal place)
+          // Fixes issue from Wavelog PR #2514: inconsistent frequency format
+          const normalizedFreq = normalizeFrequency(freqKHz);
 
           // Safety: Validate frequency range (30 kHz to 300 GHz)
-          if (!Number.isFinite(freqKHz) || freqKHz < 30 || freqKHz > 300000000) continue;
+          if (isNaN(normalizedFreq) || normalizedFreq < 30 || normalizedFreq > 300000000) continue;
 
           // Safety: Validate and sanitize timestamp
           const ts = String(item.timeStamp || '').trim();
@@ -89,7 +93,7 @@ module.exports = class SOTASpots extends events.EventEmitter {
           const dxSpot = {
             spotter,
             spotted,
-            frequency: freqKHz,              // kHz to match your POTA emitter
+            frequency: normalizedFreq,              // kHz with 1 decimal consistency
             message: msg,
             when: when,  // ISO timestamp from SOTA
             additional_data: {
@@ -100,7 +104,7 @@ module.exports = class SOTASpots extends events.EventEmitter {
 
           // Create unique key for this spot
           const deviation = getAllowedDeviation(mode);
-          const freqKey = Math.round(freqKHz / deviation) * deviation;
+          const freqKey = Math.round(normalizedFreq / deviation) * deviation;
           const spotKey = `${spotted}_${freqKey}_${mode}`;
           
           // Add to current spots Map
