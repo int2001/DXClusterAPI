@@ -1827,19 +1827,27 @@
                 
                 const health = await response.json();
                 
-                // Update server info
-                document.getElementById('version').textContent = health.version || '2.0.0';
-                document.getElementById('footerVersion').textContent = health.version || '2.0.0';
-                document.getElementById('cacheLimit').textContent = health.cache?.maxcache || 0;
-                document.getElementById('cacheSize').textContent = health.cache?.spots || 0;
-                document.getElementById('clusterCount').textContent = health.modules?.cluster?.totalClusters || 0;
-                document.getElementById('uptime').textContent = formatUptime(health.uptime || 0);
+                // Helper function to safely update element text content
+                function safeUpdateText(elementId, value) {
+                    const element = document.getElementById(elementId);
+                    if (element) {
+                        element.textContent = value;
+                    }
+                }
+                
+                // Update server info (only if elements exist)
+                safeUpdateText('version', health.version || '2.0.0');
+                safeUpdateText('footerVersion', health.version || '2.0.0');
+                safeUpdateText('cacheLimit', health.cache?.maxcache || 0);
+                safeUpdateText('cacheSize', health.cache?.spots || 0);
+                safeUpdateText('clusterCount', health.modules?.cluster?.totalClusters || 0);
+                safeUpdateText('uptime', formatUptime(health.uptime || 0));
                 
                 // Show heap used and percentage
                 const heapUsed = health.memory?.heapUsed || 0;
                 const heapTotal = health.memory?.heapTotal || 1;
                 const heapPercent = Math.round((heapUsed / heapTotal) * 100);
-                document.getElementById('memory').textContent = `${heapUsed}MB (${heapPercent}%)`;
+                safeUpdateText('memory', `${heapUsed}MB (${heapPercent}%)`);
                 
                 // Build modules display
                 const modules = [];
@@ -1876,7 +1884,7 @@
                 if (health.modules?.rateLimiter?.enabled) {
                     modules.push('RateLimit');
                 }
-                document.getElementById('modules').textContent = modules.length > 0 ? modules.join(', ') : 'None';
+                safeUpdateText('modules', modules.length > 0 ? modules.join(', ') : 'None');
                 
                 // Show/hide analytics icon based on module status
                 const analyticsIcon = document.querySelector('.analytics-icon');
