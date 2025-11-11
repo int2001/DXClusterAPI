@@ -84,11 +84,16 @@ module.exports = class SOTASpots extends events.EventEmitter {
           const when = ts.endsWith('Z') ? new Date(ts) : new Date(ts + 'Z');
           if (isNaN(when.getTime())) continue; // Invalid date
 
-          const msg =
-            (mode ? mode + " " : "") +
-            (assoc && summit ? `${assoc}/${summit}` : `${assoc}${summit}`) +
-            (summitDetails ? " " + summitDetails : "") +
-            (comments ? " (" + comments + ")" : "");
+          // Build message with fallback to ensure it's never empty
+          const summitRef = (assoc && summit) ? `${assoc}/${summit}` : `${assoc}${summit}`;
+          let messageParts = [];
+          if (mode) messageParts.push(mode);
+          if (summitRef) messageParts.push(summitRef);
+          if (summitDetails) messageParts.push(summitDetails);
+          if (comments) messageParts.push(`(${comments})`);
+          
+          // Ensure message is never completely empty
+          const msg = messageParts.length > 0 ? messageParts.join(' ') : `SOTA ${summitRef || 'Activation'}`;
 
           const dxSpot = {
             spotter,
@@ -97,7 +102,7 @@ module.exports = class SOTASpots extends events.EventEmitter {
             message: msg,
             when: when,  // ISO timestamp from SOTA
             additional_data: {
-              sota_ref: (assoc && summit) ? `${assoc}/${summit}` : (assoc || summit || ""),
+              sota_ref: summitRef || "",
               sota_mode: mode
             }
           };

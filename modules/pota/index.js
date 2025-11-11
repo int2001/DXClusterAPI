@@ -68,12 +68,26 @@ module.exports = class POTASpots extends events.EventEmitter {
 				  const locationDesc = String(item.locationDesc || '').replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim().substring(0, 100);
 				  const reference = String(item.reference || '').replace(/[\x00-\x1F\x7F-\x9F]/g, '').trim().substring(0, 20);
 				  
+				  // Build message with fallback to reference if name/location are empty
+				  let messageParts = [];
+				  if (mode) messageParts.push(mode);
+				  if (name) {
+					  messageParts.push(name);
+				  } else if (reference) {
+					  // Fallback: use reference as name if name is empty
+					  messageParts.push(reference);
+				  }
+				  if (locationDesc) messageParts.push(`(${locationDesc})`);
+				  
+				  // Ensure message is never completely empty
+				  const message = messageParts.length > 0 ? messageParts.join(' ') : `POTA ${reference || 'Activation'}`;
+				  
 				  // build POTA spot
 				  let dxSpot = {
 					  spotter: String(item.spotter).trim().substring(0, 20),
 					  spotted: String(item.activator).trim().substring(0, 20),
 					  frequency: freq,
-					  message: mode + (mode != '' ? " " : "") + name + " (" + locationDesc + ")",
+					  message: message,
 					  when: new Date(),
 					  additional_data: {
 						  pota_ref: reference,
