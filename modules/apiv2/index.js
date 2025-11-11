@@ -255,15 +255,20 @@ class APIv2 {
     /**
      * Create router with all API v2 endpoints
      * @param {Function} rateLimiter - Optional rate limiter middleware for spot endpoints
+     * @param {Function} cacheMiddleware - Optional response cache middleware
      * @returns {express.Router} Express router
      */
-    createRouter(rateLimiter) {
+    createRouter(rateLimiter, cacheMiddleware) {
         // Apply authentication to all v2 routes
         router.use(this.authMiddleware());
+        
+        // Use cache middleware if provided, otherwise passthrough
+        const cache = cacheMiddleware || ((req, res, next) => next());
 
         /**
          * GET /api/v2/spots
          * Get all spots with optional filtering
+         * Uses 1-minute response cache to reduce CPU overhead from repeated filtering/JSON serialization
          * 
          * Query parameters:
          * - band: Filter by band (e.g., "20m", "40m")
@@ -282,7 +287,7 @@ class APIv2 {
          * - limit: Maximum number of results (max: 500, omit for all results)
          * - offset: Pagination offset (default: 0)
          */
-        router.get('/spots', rateLimiter || ((req, res, next) => next()), (req, res) => {
+        router.get('/spots', cache, rateLimiter || ((req, res, next) => next()), (req, res) => {
             try {
                 const spots = this.getSpotsData();
                 const filters = req.query;

@@ -66,11 +66,15 @@ class APIv1 {
     /**
      * Creates Express router with API v1 endpoints
      * @param {Function} rateLimiter - Optional rate limiter middleware for spot endpoints
+     * @param {Function} cacheMiddleware - Optional response cache middleware
      * @returns {express.Router} - Express router with mounted endpoints
      */
-    createRouter(rateLimiter) {
+    createRouter(rateLimiter, cacheMiddleware) {
         const router = express.Router();
         const baseUrl = this.config.baseUrl || '';
+        
+        // Use cache middleware if provided, otherwise passthrough
+        const cache = cacheMiddleware || ((req, res, next) => next());
 
         // Middleware to extract X-Client-ID header for analytics
         router.use((req, res, next) => {
@@ -93,8 +97,9 @@ class APIv1 {
         /**
          * GET /spots - Retrieve cached spots (limited to latest N spots, sorted by timestamp)
          * Limit is configurable via API_SPOT_LIMIT environment variable (default: 200)
+         * Uses 1-minute response cache to reduce CPU overhead from repeated JSON serialization
          */
-        router.get(baseUrl + '/spots', rateLimiter || ((req, res, next) => next()), (req, res) => {
+        router.get(baseUrl + '/spots', cache, rateLimiter || ((req, res, next) => next()), (req, res) => {
             const spots = this.getSpotsData();
             const limit = this.config.apiSpotLimit || 200;
             

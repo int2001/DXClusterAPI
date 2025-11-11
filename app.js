@@ -369,8 +369,8 @@ const apiv1 = new APIv1(
 
 // Mount API v1 router if enabled
 if (config.apiv1Enabled) {
-    app.use(apiv1.createRouter(rateLimiter.getDataLimiter()));
-    console.log('API v1 endpoints enabled with rate limiting');
+    app.use(apiv1.createRouter(rateLimiter.getDataLimiter(), responseCacheMiddleware(60 * 1000)));
+    console.log('API v1 endpoints enabled with rate limiting and 1-minute response cache');
 } else {
     console.log('API v1 endpoints disabled');
 }
@@ -388,8 +388,8 @@ const apiv2 = new APIv2({
 
 // Mount API v2 router if enabled
 if (config.apiv2Enabled) {
-    app.use(config.baseUrl + '/api/v2', apiv2.createRouter(rateLimiter.getDataLimiter()));
-    console.log('API v2 enabled at ' + config.baseUrl + '/api/v2' + (apiv2.getStatus().requiresAuth ? ' (authentication required)' : ' (no authentication)') + ' with rate limiting');
+    app.use(config.baseUrl + '/api/v2', apiv2.createRouter(rateLimiter.getDataLimiter(), responseCacheMiddleware(60 * 1000)));
+    console.log('API v2 enabled at ' + config.baseUrl + '/api/v2' + (apiv2.getStatus().requiresAuth ? ' (authentication required)' : ' (no authentication)') + ' with rate limiting and 1-minute response cache');
 } else {
     console.log('API v2 disabled');
 }
@@ -581,6 +581,7 @@ app.get(config.baseUrl + '/health', (req, res) => {
             spots: spots.length,
             maxcache: config.maxcache,
             dxccCache: dxccCache.size,
+            responseCache: responseCache.size,
             bandIndex: bandIndex.size,
             frequencyIndex: frequencyIndex.size,
             sourceIndex: sourceIndex.size,
@@ -1376,6 +1377,98 @@ const pendingDxccLookups = new Map(); // Map<callsign, Promise>
 let dxccLookupQueue = [];
 let dxccLookupInProgress = false;
 let activeDxccLookups = 0;
+
+// HTTP Response cache: Map<cacheKey, {data, timestamp}>
+// Caches full HTTP responses for high-traffic endpoints to reduce CPU/memory overhead
+const responseCache = new Map();
+const RESPONSE_CACHE_TTL = 60 * 1000;  // 1 minute
+const RESPONSE_CACHE_MAX_SIZE = 1000;  // Max cached responses
+const RESPONSE_CACHE_CLEANUP_INTERVAL = 60 * 1000;  // Cleanup every minute
+
+// Periodic cleanup of response cache to remove expired entries
+setInterval(() => {
+    const now = Date.now();
+    let removedCount = 0;
+    
+    for (const [key, entry] of responseCache.entries()) {
+        if (now - entry.timestamp > RESPONSE_CACHE_TTL) {
+            responseCache.delete(key);
+            removedCount++;
+        }
+    }
+    
+    if (removedCount > 0) {
+        console.log(`[Response Cache] Cleaned up ${removedCount} entries. Cache: ${responseCache.size} entries`);
+    }
+}, RESPONSE_CACHE_CLEANUP_INTERVAL);
+
+/**
+ * Generates a cache key from request URL and query parameters
+ * @param {string} baseUrl - Base URL path
+ * @param {object} query - Query parameters object
+ * @returns {string} - Cache key
+ */
+function generateCacheKey(baseUrl, query) {
+    // Sort query parameters for consistent cache keys
+    const sortedQuery = Object.keys(query).sort().map(key => `${key}=${query[key]}`).join('&');
+    return sortedQuery ? `${baseUrl}?${sortedQuery}` : baseUrl;
+}
+
+/**
+ * Response cache middleware - caches responses for specified TTL
+ * @param {number} ttl - Time to live in milliseconds
+ * @returns {function} - Express middleware function
+ */
+function responseCacheMiddleware(ttl = RESPONSE_CACHE_TTL) {
+    return (req, res, next) => {
+        // Generate cache key from URL and query params
+        const cacheKey = generateCacheKey(req.path, req.query);
+        
+        // Check if cached response exists and is still valid
+        const cached = responseCache.get(cacheKey);
+        if (cached) {
+            const age = Date.now() - cached.timestamp;
+            if (age < ttl) {
+                // Cache hit - return cached response
+                res.setHeader('X-Cache', 'HIT');
+                res.setHeader('X-Cache-Age', Math.floor(age / 1000)); // Age in seconds
+                return res.json(cached.data);
+            } else {
+                // Expired - remove from cache
+                responseCache.delete(cacheKey);
+            }
+        }
+        
+        // Cache miss - intercept res.json to cache the response
+        const originalJson = res.json.bind(res);
+        res.json = function(data) {
+            // Cache the response
+            if (responseCache.size >= RESPONSE_CACHE_MAX_SIZE) {
+                // Remove oldest 10% of entries
+                const toRemove = Math.floor(RESPONSE_CACHE_MAX_SIZE * 0.1);
+                let removed = 0;
+                for (const key of responseCache.keys()) {
+                    if (removed >= toRemove) break;
+                    responseCache.delete(key);
+                    removed++;
+                }
+            }
+            
+            responseCache.set(cacheKey, {
+                data: data,
+                timestamp: Date.now()
+            });
+            
+            // Add cache miss header
+            res.setHeader('X-Cache', 'MISS');
+            
+            // Call original json method
+            return originalJson(data);
+        };
+        
+        next();
+    };
+}
 
 // Periodic cleanup of DXCC cache to remove expired entries
 setInterval(() => {
