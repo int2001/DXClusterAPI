@@ -954,6 +954,57 @@ async function handlespot(spot, spot_source = "cluster") {
 			return;
 		}
 		
+		// Store original source data for GUI debugging/display
+		const sourceData = {
+			source_type: spot_source,
+			timestamp: new Date().toISOString(),
+			raw: null
+		};
+		
+		// Capture source-specific raw data before processing
+		switch (spot_source) {
+			case 'cluster':
+			case 'rbn':
+				// For DX cluster/RBN, store the original spot data
+				sourceData.raw = {
+					spotter: spot.spotter,
+					spotted: spot.spotted,
+					frequency: spot.frequency,
+					message: spot.message,
+					when: spot.when,
+					source: spot.source || spot_source
+				};
+				break;
+				
+			case 'pota':
+				// For POTA, store the API response data
+				if (spot.additional_data) {
+					sourceData.raw = {
+						spotter: spot.spotter,
+						activator: spot.spotted,
+						frequency: spot.frequency,
+						mode: spot.additional_data.pota_mode,
+						reference: spot.additional_data.pota_ref,
+						message: spot.message
+					};
+				}
+				break;
+				
+			case 'sota':
+				// For SOTA, store the API response data
+				if (spot.additional_data) {
+					sourceData.raw = {
+						spotter: spot.spotter,
+						activator: spot.spotted,
+						frequency: spot.frequency,
+						mode: spot.additional_data.sota_mode,
+						reference: spot.additional_data.sota_ref,
+						message: spot.message
+					};
+				}
+				break;
+		}
+		
 		//construct a clean spot
 		let dxSpot = {
 			spotter: spot.spotter,
@@ -961,7 +1012,8 @@ async function handlespot(spot, spot_source = "cluster") {
 			frequency: normalizedFreq,  // Use normalized frequency
 			message: spot.message,
 			when: spot.when,	
-			source: spot_source,	
+			source: spot_source,
+			_sourceData: sourceData  // Attach source data for GUI display
 		}
 
 		//do DXCC lookup (with timeout protection)

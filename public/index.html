@@ -669,6 +669,84 @@
             background: #5a6268;
         }
 
+        /* Modal Tab Styles */
+        .modal-tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px 20px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .tab-btn:hover:not(:disabled) {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .tab-btn.active {
+            color: #667eea;
+            background: white;
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #667eea;
+        }
+
+        .tab-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .source-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .source-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .source-info strong {
+            color: #333;
+            margin-right: 8px;
+        }
+
+        .source-info span {
+            color: #667eea;
+            font-family: 'Courier New', monospace;
+        }
+
         /* Analytics modal specific styles */
         .analytics-section {
             margin-bottom: 25px;
@@ -893,16 +971,38 @@
     <div id="spotModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Spot Details - Raw JSON</h2>
+                <h2>Spot Details</h2>
                 <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
+            
+            <!-- Tab Navigation -->
+            <div class="modal-tabs">
+                <button class="tab-btn active" onclick="switchTab('processed')">Processed JSON</button>
+                <button class="tab-btn" onclick="switchTab('source')">Source Data</button>
+            </div>
+            
             <div class="modal-body">
-                <div class="json-container">
-                    <pre id="spotJson"></pre>
+                <!-- Processed JSON Tab -->
+                <div id="processedTab" class="tab-content active">
+                    <div class="json-container">
+                        <pre id="spotJson"></pre>
+                    </div>
+                </div>
+                
+                <!-- Source Data Tab -->
+                <div id="sourceTab" class="tab-content">
+                    <div class="source-info">
+                        <p><strong>Source Type:</strong> <span id="sourceType"></span></p>
+                        <p><strong>Received:</strong> <span id="sourceTimestamp"></span></p>
+                    </div>
+                    <div class="json-container">
+                        <pre id="sourceJson"></pre>
+                    </div>
                 </div>
             </div>
+            
             <div class="modal-footer">
-                <button class="modal-btn copy" id="copyBtn" onclick="copyToClipboard()">Copy to Clipboard</button>
+                <button class="modal-btn copy" id="copyBtn" onclick="copyToClipboard()">Copy Active Tab</button>
                 <button class="modal-btn close" onclick="closeModal()">Close</button>
             </div>
         </div>
@@ -1208,24 +1308,115 @@
             return div.innerHTML;
         }
 
+        // Global variable to track active tab content for copying
+        let activeTabContent = null;
+
         // Modal functions
         function showSpotDetails(spot) {
             const modal = document.getElementById('spotModal');
             const jsonPre = document.getElementById('spotJson');
+            const sourceJson = document.getElementById('sourceJson');
+            const sourceType = document.getElementById('sourceType');
+            const sourceTimestamp = document.getElementById('sourceTimestamp');
             
-            // Format JSON with proper indentation
-            jsonPre.textContent = JSON.stringify(spot, null, 2);
+            // Format processed JSON
+            const processedJson = JSON.stringify(spot, null, 2);
+            jsonPre.textContent = processedJson;
             
-            // Store the JSON for copying
-            modal.dataset.spotJson = JSON.stringify(spot, null, 2);
+            // Handle source data if available
+            if (spot._sourceData && spot._sourceData.raw) {
+                const sourceData = spot._sourceData;
+                
+                // Update source info
+                sourceType.textContent = getSourceLabel(sourceData.source_type);
+                sourceTimestamp.textContent = new Date(sourceData.timestamp).toLocaleString();
+                
+                // Format source JSON based on type
+                let sourceDisplay = '';
+                if (sourceData.source_type === 'cluster' || sourceData.source_type === 'rbn') {
+                    // For cluster/RBN, reconstruct the DX line format
+                    sourceDisplay = formatDXClusterLine(sourceData.raw);
+                } else {
+                    // For API sources (POTA, SOTA), show JSON
+                    sourceDisplay = JSON.stringify(sourceData.raw, null, 2);
+                }
+                
+                sourceJson.textContent = sourceDisplay;
+                
+                // Enable source tab
+                const sourceTabBtn = document.querySelector('.tab-btn:nth-child(2)');
+                sourceTabBtn.disabled = false;
+                sourceTabBtn.style.opacity = '1';
+            } else {
+                // No source data available
+                sourceJson.textContent = '// Source data not available for this spot';
+                sourceType.textContent = 'N/A';
+                sourceTimestamp.textContent = 'N/A';
+                
+                // Disable source tab
+                const sourceTabBtn = document.querySelector('.tab-btn:nth-child(2)');
+                sourceTabBtn.disabled = true;
+                sourceTabBtn.style.opacity = '0.5';
+            }
+            
+            // Reset to first tab
+            switchTab('processed');
+            
+            // Store content for copying
+            activeTabContent = processedJson;
             
             // Show modal
             modal.style.display = 'block';
             
             // Reset copy button state
             const copyBtn = document.getElementById('copyBtn');
-            copyBtn.textContent = 'Copy to Clipboard';
+            copyBtn.textContent = 'Copy Active Tab';
             copyBtn.classList.remove('copied');
+        }
+
+        function switchTab(tabName) {
+            // Remove active class from all tabs and content
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Add active class to selected tab
+            if (tabName === 'processed') {
+                document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+                document.getElementById('processedTab').classList.add('active');
+                activeTabContent = document.getElementById('spotJson').textContent;
+            } else if (tabName === 'source') {
+                document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+                document.getElementById('sourceTab').classList.add('active');
+                activeTabContent = document.getElementById('sourceJson').textContent;
+            }
+            
+            // Reset copy button
+            const copyBtn = document.getElementById('copyBtn');
+            copyBtn.textContent = 'Copy Active Tab';
+            copyBtn.classList.remove('copied');
+        }
+
+        function getSourceLabel(sourceType) {
+            const labels = {
+                'cluster': 'DX Cluster (Telnet)',
+                'rbn': 'Reverse Beacon Network (Telnet)',
+                'pota': 'POTA API',
+                'sota': 'SOTA API'
+            };
+            return labels[sourceType] || sourceType;
+        }
+
+        function formatDXClusterLine(rawData) {
+            // Reconstruct approximate DX cluster line format
+            // Example: DX de N6TV-#:    14059.0  W7DLZ         CW    14 dB  20 WPM  CQ      2209Z
+            
+            const spotter = rawData.spotter.padEnd(10);
+            const freq = String(rawData.frequency).padStart(8);
+            const spotted = rawData.spotted.padEnd(13);
+            const message = rawData.message || '';
+            const time = rawData.when ? new Date(rawData.when).toISOString().slice(11, 16).replace(':', '') + 'Z' : '';
+            
+            return `DX de ${spotter}: ${freq}  ${spotted} ${message}      ${time}\n\n// Note: This is a reconstructed approximation of the original telnet line`;
         }
 
         function closeModal() {
@@ -1763,24 +1954,23 @@
         }
 
         async function copyToClipboard() {
-            const modal = document.getElementById('spotModal');
-            const jsonText = modal.dataset.spotJson;
             const copyBtn = document.getElementById('copyBtn');
             
             try {
-                await navigator.clipboard.writeText(jsonText);
+                // Copy the active tab content
+                await navigator.clipboard.writeText(activeTabContent);
                 copyBtn.textContent = '✓ Copied!';
                 copyBtn.classList.add('copied');
                 
                 setTimeout(() => {
-                    copyBtn.textContent = 'Copy to Clipboard';
+                    copyBtn.textContent = 'Copy Active Tab';
                     copyBtn.classList.remove('copied');
                 }, 2000);
             } catch (err) {
                 console.error('Failed to copy:', err);
                 copyBtn.textContent = 'Failed to copy';
                 setTimeout(() => {
-                    copyBtn.textContent = 'Copy to Clipboard';
+                    copyBtn.textContent = 'Copy Active Tab';
                 }, 2000);
             }
         }
