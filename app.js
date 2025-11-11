@@ -962,6 +962,14 @@ function normalizeSpotterCallsign(callsign) {
 async function handlespot(spot, spot_source = "cluster") {
 
 	try {
+		// ====================================================================
+		// CRITICAL VALIDATION: Reject spots missing essential fields
+		// ====================================================================
+		if (!spot.spotted || !spot.spotter || !spot.frequency) {
+			console.warn(`[Spot Validation] Rejected spot missing critical fields - spotted: ${spot.spotted}, spotter: ${spot.spotter}, frequency: ${spot.frequency}, source: ${spot_source}`);
+			return;
+		}
+		
 		// Normalize spotter callsign - strip RBN/cluster suffixes like -#, -15, etc.
 		// This simplifies deduplication and improves cache hit rates
 		spot.spotter = normalizeSpotterCallsign(spot.spotter);
@@ -1035,6 +1043,19 @@ async function handlespot(spot, spot_source = "cluster") {
 			console.warn(`DXCC lookup failed: ${dxccError.message}`);
 			dxSpot.dxcc_spotter = {};
 			dxSpot.dxcc_spotted = {};
+		}
+		
+		// ====================================================================
+		// DXCC VALIDATION: Reject spots that failed DXCC lookup
+		// Empty DXCC data means the callsign couldn't be resolved (invalid, timeout, etc.)
+		// We don't want spots without country/continent information in the system
+		// ====================================================================
+		const hasValidSpotter = dxSpot.dxcc_spotter && Object.keys(dxSpot.dxcc_spotter).length > 0;
+		const hasValidSpotted = dxSpot.dxcc_spotted && Object.keys(dxSpot.dxcc_spotted).length > 0;
+		
+		if (!hasValidSpotter || !hasValidSpotted) {
+			console.warn(`[DXCC Validation] Rejected spot with failed DXCC lookup - spotted: ${spot.spotted} (valid: ${hasValidSpotted}), spotter: ${spot.spotter} (valid: ${hasValidSpotter}), source: ${spot_source}`);
+			return;
 		}
 		
 		// Apply RBN continent filtering if this is an RBN spot
