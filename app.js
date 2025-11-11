@@ -934,11 +934,26 @@ function findInsertionIndex(arr, spot) {
  * @returns {string} - The spotKey for indexing
  */
 function generateSpotKey(spot) {
-    if (spot.source === "rbn" && spot.dxcc_spotter && spot.dxcc_spotter.cont) {
-        return `rbn_${spot.spotted}_${spot.dxcc_spotter.cont}`;
+    // For all spots: deduplicate by spotted callsign + DX continent
+    // This keeps only the most recent spot per callsign per continent
+    if (spot.dxcc_spotted && spot.dxcc_spotted.cont) {
+        return `${spot.spotted}_${spot.dxcc_spotted.cont}`;
     } else {
+        // Fallback for spots without DXCC data
         return `${spot.frequency}_${spot.spotted}_${spot.spotter}`;
     }
+}
+
+/**
+ * Strips RBN/cluster suffixes from spotter callsigns
+ * Removes -#, -15, -0-9 etc. to normalize callsigns
+ * @param {string} callsign - The callsign to normalize
+ * @returns {string} - Normalized callsign
+ */
+function normalizeSpotterCallsign(callsign) {
+    if (!callsign) return callsign;
+    // Remove dash followed by numbers, # or other suffixes
+    return callsign.replace(/[-\/]([0-9]+|#)$/i, '');
 }
 
 /**
@@ -947,6 +962,10 @@ function generateSpotKey(spot) {
 async function handlespot(spot, spot_source = "cluster") {
 
 	try {
+		// Normalize spotter callsign - strip RBN/cluster suffixes like -#, -15, etc.
+		// This simplifies deduplication and improves cache hit rates
+		spot.spotter = normalizeSpotterCallsign(spot.spotter);
+		
 		// Normalize frequency for consistency (based on Wavelog PR #2514)
 		// All frequencies should be in kHz with 1 decimal place
 		const normalizedFreq = normalizeFrequency(spot.frequency);

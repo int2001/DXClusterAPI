@@ -85,6 +85,18 @@ class APIv2 {
     }
 
     /**
+     * Strips internal debugging data from spots before API response
+     * @param {array} spots - Array of spots
+     * @returns {array} - Cleaned spots without internal data
+     */
+    cleanSpotsForAPI(spots) {
+        return spots.map(spot => {
+            const { _sourceData, ...cleanSpot } = spot;
+            return cleanSpot;
+        });
+    }
+
+    /**
      * Filter spots based on query parameters
      * @param {Array} spots - Array of spots to filter
      * @param {object} filters - Filter parameters
@@ -316,14 +328,17 @@ class APIv2 {
                 // Apply pagination (now on reversed/newest-first array)
                 filtered = filtered.slice(offset, offset + limit);
                 
+                // Strip internal debug data before sending to customers
+                const cleanedSpots = this.cleanSpotsForAPI(filtered);
+                
                 res.json(this.formatResponse({
                     success: true,
-                    data: filtered,
+                    data: cleanedSpots,
                     meta: {
                         total: total,
                         limit: limit,
                         offset: offset,
-                        returned: filtered.length,
+                        returned: cleanedSpots.length,
                         filters: filters
                     }
                 }));
@@ -350,12 +365,15 @@ class APIv2 {
                     spot.spotted && spot.spotted.toUpperCase() === callsign
                 );
                 
+                // Strip internal debug data before sending to customers
+                const cleanedSpots = this.cleanSpotsForAPI(filtered);
+                
                 res.json(this.formatResponse({
                     success: true,
-                    data: filtered,
+                    data: cleanedSpots,
                     meta: {
                         callsign: callsign,
-                        total: filtered.length
+                        total: cleanedSpots.length
                     }
                 }));
             } catch (error) {

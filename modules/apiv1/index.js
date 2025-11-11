@@ -49,6 +49,18 @@ class APIv1 {
     }
 
     /**
+     * Strips internal debugging data from spots before API response
+     * @param {array} spots - Array of spots
+     * @returns {array} - Cleaned spots without internal data
+     */
+    cleanSpotsForAPI(spots) {
+        return spots.map(spot => {
+            const { _sourceData, ...cleanSpot } = spot;
+            return cleanSpot;
+        });
+    }
+
+    /**
      * Gets the list of API v1 endpoints
      * @returns {object} - Object with endpoint paths
      */
@@ -91,7 +103,14 @@ class APIv1 {
         router.get(baseUrl + '/spot/:qrg', rateLimiter || ((req, res, next) => next()), (req, res) => {
             const qrg = req.params.qrg;
             const single_spot = this.getSingleSpot(qrg);
-            res.json(single_spot);
+            
+            // Strip internal data before sending
+            if (single_spot && Object.keys(single_spot).length > 0) {
+                const { _sourceData, ...cleanSpot } = single_spot;
+                res.json(cleanSpot);
+            } else {
+                res.json(single_spot);
+            }
         });
 
         /**
@@ -107,9 +126,9 @@ class APIv1 {
             // So we slice from the end to get the newest spots
             const limitedSpots = spots.length > limit ? spots.slice(-limit) : spots.slice();
             
-            // Reverse to show newest first (most recent at top)
-            // Use slice().reverse() to avoid mutating the original array
-            res.json(limitedSpots.reverse());
+            // Strip internal debugging data and reverse to show newest first
+            const cleanSpots = this.cleanSpotsForAPI(limitedSpots);
+            res.json(cleanSpots.reverse());
         });
 
         /**
@@ -117,7 +136,8 @@ class APIv1 {
          */
         router.get(baseUrl + '/spots/:band', rateLimiter || ((req, res, next) => next()), (req, res) => {
             const bandspots = this.getBandSpots(req.params.band);
-            res.json(bandspots);
+            const cleanSpots = this.cleanSpotsForAPI(bandspots);
+            res.json(cleanSpots);
         });
 
         /**
@@ -125,7 +145,8 @@ class APIv1 {
          */
         router.get(baseUrl + '/spots/source/:source', rateLimiter || ((req, res, next) => next()), (req, res) => {
             const sourcespots = this.getSourceSpots(req.params.source);
-            res.json(sourcespots);
+            const cleanSpots = this.cleanSpotsForAPI(sourcespots);
+            res.json(cleanSpots);
         });
 
         return router;
