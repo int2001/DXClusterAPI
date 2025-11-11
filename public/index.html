@@ -1066,7 +1066,7 @@
         let ws;
         let displayedSpots = new Set(); // Track unique spots by frequency
         let spotsInLastMinute = [];
-        const maxDisplaySpots = 100;
+        const maxDisplaySpots = 200;
         let usePolling = false;
         let pollingInterval;
         let wsConnectionAttempts = 0;
@@ -1333,12 +1333,12 @@
                 
                 // Format source JSON based on type
                 let sourceDisplay = '';
-                if (sourceData.source_type === 'cluster' || sourceData.source_type === 'rbn') {
-                    // For cluster/RBN, reconstruct the DX line format
-                    sourceDisplay = formatDXClusterLine(sourceData.raw);
-                } else {
+                if (sourceData.source_type === 'pota' || sourceData.source_type === 'sota') {
                     // For API sources (POTA, SOTA), show JSON
                     sourceDisplay = JSON.stringify(sourceData.raw, null, 2);
+                } else {
+                    // For all DX clusters (rbn, dxfun, ha-cluster, custom clusters), reconstruct the DX line format
+                    sourceDisplay = formatDXClusterLine(sourceData.raw);
                 }
                 
                 sourceJson.textContent = sourceDisplay;
@@ -1398,12 +1398,13 @@
 
         function getSourceLabel(sourceType) {
             const labels = {
-                'cluster': 'DX Cluster (Telnet)',
                 'rbn': 'Reverse Beacon Network (Telnet)',
                 'pota': 'POTA API',
                 'sota': 'SOTA API'
             };
-            return labels[sourceType] || sourceType;
+            // If it's a known type, return the label
+            // Otherwise, format it as a DX Cluster name (e.g., "dxfun" -> "dxfun DX Cluster (Telnet)")
+            return labels[sourceType] || `${sourceType} DX Cluster (Telnet)`;
         }
 
         function formatDXClusterLine(rawData) {

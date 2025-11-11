@@ -962,47 +962,37 @@ async function handlespot(spot, spot_source = "cluster") {
 		};
 		
 		// Capture source-specific raw data before processing
-		switch (spot_source) {
-			case 'cluster':
-			case 'rbn':
-				// For DX cluster/RBN, store the original spot data
-				sourceData.raw = {
-					spotter: spot.spotter,
-					spotted: spot.spotted,
-					frequency: spot.frequency,
-					message: spot.message,
-					when: spot.when,
-					source: spot.source || spot_source
-				};
-				break;
-				
-			case 'pota':
-				// For POTA, store the API response data
-				if (spot.additional_data) {
-					sourceData.raw = {
-						spotter: spot.spotter,
-						activator: spot.spotted,
-						frequency: spot.frequency,
-						mode: spot.additional_data.pota_mode,
-						reference: spot.additional_data.pota_ref,
-						message: spot.message
-					};
-				}
-				break;
-				
-			case 'sota':
-				// For SOTA, store the API response data
-				if (spot.additional_data) {
-					sourceData.raw = {
-						spotter: spot.spotter,
-						activator: spot.spotted,
-						frequency: spot.frequency,
-						mode: spot.additional_data.sota_mode,
-						reference: spot.additional_data.sota_ref,
-						message: spot.message
-					};
-				}
-				break;
+		// Check for POTA/SOTA first (they have additional_data), otherwise treat as cluster/RBN
+		if (spot_source === 'pota' && spot.additional_data) {
+			// For POTA, store the API response data
+			sourceData.raw = {
+				spotter: spot.spotter,
+				activator: spot.spotted,
+				frequency: spot.frequency,
+				mode: spot.additional_data.pota_mode,
+				reference: spot.additional_data.pota_ref,
+				message: spot.message
+			};
+		} else if (spot_source === 'sota' && spot.additional_data) {
+			// For SOTA, store the API response data
+			sourceData.raw = {
+				spotter: spot.spotter,
+				activator: spot.spotted,
+				frequency: spot.frequency,
+				mode: spot.additional_data.sota_mode,
+				reference: spot.additional_data.sota_ref,
+				message: spot.message
+			};
+		} else {
+			// For all DX clusters (rbn, dxfun, ha-cluster, or any custom cluster), store the original spot data
+			sourceData.raw = {
+				spotter: spot.spotter,
+				spotted: spot.spotted,
+				frequency: spot.frequency,
+				message: spot.message,
+				when: spot.when,
+				source: spot.source || spot_source
+			};
 		}
 		
 		//construct a clean spot
