@@ -369,8 +369,8 @@ const apiv1 = new APIv1(
 
 // Mount API v1 router if enabled
 if (config.apiv1Enabled) {
-    app.use(apiv1.createRouter(rateLimiter.getDataLimiter(), responseCacheMiddleware(60 * 1000)));
-    console.log('API v1 endpoints enabled with rate limiting and 1-minute response cache');
+    app.use(apiv1.createRouter(rateLimiter.getDataLimiter(), responseCacheMiddleware(55 * 1000)));
+    console.log('API v1 endpoints enabled with rate limiting and 55-second response cache');
 } else {
     console.log('API v1 endpoints disabled');
 }
@@ -388,8 +388,8 @@ const apiv2 = new APIv2({
 
 // Mount API v2 router if enabled
 if (config.apiv2Enabled) {
-    app.use(config.baseUrl + '/api/v2', apiv2.createRouter(rateLimiter.getDataLimiter(), responseCacheMiddleware(60 * 1000)));
-    console.log('API v2 enabled at ' + config.baseUrl + '/api/v2' + (apiv2.getStatus().requiresAuth ? ' (authentication required)' : ' (no authentication)') + ' with rate limiting and 1-minute response cache');
+    app.use(config.baseUrl + '/api/v2', apiv2.createRouter(rateLimiter.getDataLimiter(), responseCacheMiddleware(55 * 1000)));
+    console.log('API v2 enabled at ' + config.baseUrl + '/api/v2' + (apiv2.getStatus().requiresAuth ? ' (authentication required)' : ' (no authentication)') + ' with rate limiting and 55-second response cache');
 } else {
     console.log('API v2 disabled');
 }
@@ -1381,7 +1381,7 @@ let activeDxccLookups = 0;
 // HTTP Response cache: Map<cacheKey, {data, timestamp}>
 // Caches full HTTP responses for high-traffic endpoints to reduce CPU/memory overhead
 const responseCache = new Map();
-const RESPONSE_CACHE_TTL = 60 * 1000;  // 1 minute
+const RESPONSE_CACHE_TTL = 55 * 1000;  // 55 seconds (clients poll every 60s)
 const RESPONSE_CACHE_MAX_SIZE = 1000;  // Max cached responses
 const RESPONSE_CACHE_CLEANUP_INTERVAL = 60 * 1000;  // Cleanup every minute
 

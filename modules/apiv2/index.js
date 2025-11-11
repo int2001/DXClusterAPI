@@ -6,7 +6,6 @@
  */
 
 const express = require('express');
-const router = express.Router();
 
 class APIv2 {
     /**
@@ -259,6 +258,9 @@ class APIv2 {
      * @returns {express.Router} Express router
      */
     createRouter(rateLimiter, cacheMiddleware) {
+        // Create a fresh router instance each time
+        const router = express.Router();
+        
         // Apply authentication to all v2 routes
         router.use(this.authMiddleware());
         
