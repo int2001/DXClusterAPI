@@ -214,6 +214,14 @@ class ModeClassifier {
 
         // Other digital modes
         if (this.modes.DIGITAL_OTHER.includes(modeUpper)) {
+            // For generic "DIGI" mode, try to determine actual submode from frequency
+            if (modeUpper === 'DIGI' && frequency) {
+                const freqResult = this.classifyFromFrequency(frequency);
+                // If frequency suggests a specific digital mode, use it
+                if (freqResult.mode === 'digi' && freqResult.submode !== 'RTTY') {
+                    return { mode: 'digi', submode: freqResult.submode, confidence: 0.8 };
+                }
+            }
             return { mode: 'digi', submode: modeUpper, confidence: 1.0 };
         }
 
@@ -285,6 +293,31 @@ class ModeClassifier {
                         return { mode: 'digi', submode: 'FT8', confidence: 0.8 };
                     }
                 }
+                
+                // Check for FT4 calling frequencies
+                const ft4Freqs = [3575.5, 7047.5, 10140, 14080, 18104, 21140, 24919, 28180];
+                for (const ft4Freq of ft4Freqs) {
+                    if (Math.abs(freqKhz - ft4Freq) < 5) {
+                        return { mode: 'digi', submode: 'FT4', confidence: 0.8 };
+                    }
+                }
+                
+                // Check for WSPR beacon frequencies
+                const wsprFreqs = [1836.6, 3568.6, 5287.2, 7038.6, 10138.7, 14095.6, 18104.6, 21094.6, 24924.6, 28124.6];
+                for (const wsprFreq of wsprFreqs) {
+                    if (Math.abs(freqKhz - wsprFreq) < 1) {
+                        return { mode: 'digi', submode: 'WSPR', confidence: 0.9 };
+                    }
+                }
+                
+                // Check for PSK31 calling frequencies
+                const psk31Freqs = [3580, 7070, 10142, 14070, 18100, 21080, 24920, 28120];
+                for (const psk31Freq of psk31Freqs) {
+                    if (Math.abs(freqKhz - psk31Freq) < 3) {
+                        return { mode: 'digi', submode: 'PSK31', confidence: 0.7 };
+                    }
+                }
+                
                 return { mode: 'digi', submode: 'RTTY', confidence: 0.6 };
             }
         }
