@@ -14,7 +14,7 @@ const CONTEST_INDICATORS = [
     'SWEEPSTAKES', 'FIELD DAY', 'DX CONTEST', 'SSB CONTEST', 'CW CONTEST',
     'RTTY CONTEST', 'VHF CONTEST', 'SPRINT', 'DXCC', 'WAE', 'IOTA CONTEST',
     'NAQP', 'BARTG', 'RSGB', 'RUNDSPRUCH', 'JARTS', 'CW OPEN', 'SSB OPEN',
-    'EU CONTEST', 'NA CONTEST', 'KING OF SPAIN', 'ALL ASIAN'
+    'EU CONTEST', 'NA CONTEST', 'KING OF SPAIN', 'ALL ASIAN', 'LZ DX'
 ];
 
 /**
@@ -72,6 +72,14 @@ function enrichSpotMetadata(spot) {
     }
 
     // Contest detection - more strict to avoid false positives
+    
+    // Special handling for LZ DX Contest with various formats
+    if (/\bLZ\s*-?\s*DX\b/i.test(upperMessage)) {
+        metadata.isContest = true;
+        metadata.contestName = 'LZ DX';
+        return metadata;
+    }
+    
     // First, try to extract full contest name patterns (e.g., "WAEDC-Contest", "CQ-WW-DX", "ARRL-DX")
     const fullContestMatch = upperMessage.match(/\b([A-Z0-9]+-(?:CONTEST|DX|CW|SSB|RTTY|TEST))\b/);
     if (fullContestMatch) {
