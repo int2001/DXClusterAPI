@@ -189,12 +189,30 @@ function enrichSpotMetadata(spot) {
     }
 
     // Try to find contest name followed by "CONTEST" (e.g., "WAEDC Contest", "LZ DX Contest")
-    const namedContestMatch = upperMessage.match(/\b([A-Z0-9]{2,}(?:\s+[A-Z0-9]+)?)\s+CONTEST\b/);
+    // Require at least 3 characters OR multiple words to avoid false positives
+    const namedContestMatch = upperMessage.match(/\b([A-Z0-9]{3,}(?:\s+[A-Z0-9]+)?|[A-Z0-9]{2,}\s+[A-Z0-9]+)\s+CONTEST\b/);
     if (namedContestMatch) {
         metadata.isContest = true;
-        const contestName = namedContestMatch[1].trim();
+        let contestName = namedContestMatch[1].trim();
+        
+        // Special case: "LZ Contest" should be "LZ DX"
+        if (contestName === 'LZ') {
+            contestName = 'LZ DX';
+        }
+        
         // Try to normalize, otherwise use extracted name
         metadata.contestName = normalizeContestName(contestName) || contestName;
+        return metadata;
+    }
+    
+    // Special case: Short 2-letter country code + "Contest" (e.g., "LZ Contest" → "LZ DX")
+    const shortContestMatch = upperMessage.match(/\b([A-Z]{2})\s+CONTEST\b/);
+    if (shortContestMatch) {
+        metadata.isContest = true;
+        const countryCode = shortContestMatch[1];
+        // Try with " DX" suffix first, otherwise use country code as-is
+        const possibleName = countryCode + ' DX';
+        metadata.contestName = normalizeContestName(possibleName) || normalizeContestName(countryCode) || 'Other';
         return metadata;
     }
 
