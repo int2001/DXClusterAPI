@@ -451,7 +451,7 @@ app.get(config.baseUrl + '/info', (req, res) => {
 
 // Serve info page - only if enabled
 if (config.infoPageEnabled) {
-    const infoPagePath = path.join(__dirname, 'public', 'info', 'index.html');
+    const infoPagePath = path.join(__dirname, 'views', 'info', 'index.html');
     
     // Info page route with authentication
     app.get(config.baseUrl + '/info', (req, res) => {
