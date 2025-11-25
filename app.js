@@ -957,6 +957,119 @@ function normalizeSpotterCallsign(callsign) {
 }
 
 /**
+ * Sanitizes a value to ensure JSON serializability
+ * Replaces NaN, Infinity, -Infinity with null
+ * @param {*} value - Value to sanitize
+ * @returns {*} - Sanitized value
+ */
+function sanitizeForJSON(value) {
+    if (typeof value === 'number') {
+        if (!isFinite(value)) {
+            return null; // Replace NaN, Infinity, -Infinity with null
+        }
+    }
+    return value;
+}
+
+/**
+ * Ensures DXCC object has consistent structure
+ * @param {object} dxccObj - DXCC object to normalize
+ * @returns {object} - Normalized DXCC object
+ */
+function normalizeDXCCObject(dxccObj) {
+    if (!dxccObj || typeof dxccObj !== 'object') {
+        return {
+            cont: '',
+            entity: '',
+            flag: '',
+            dxcc_id: '',
+            lotw_user: false,
+            lat: null,
+            lng: null,
+            cqz: null
+        };
+    }
+    
+    // Ensure all expected fields exist with proper defaults
+    return {
+        cont: dxccObj.cont || '',
+        entity: dxccObj.entity || '',
+        flag: dxccObj.flag || '',
+        dxcc_id: dxccObj.dxcc_id || '',
+        lotw_user: Boolean(dxccObj.lotw_user),
+        lat: sanitizeForJSON(dxccObj.lat),
+        lng: sanitizeForJSON(dxccObj.lng),
+        cqz: sanitizeForJSON(dxccObj.cqz),
+        // Preserve enrichment fields if present
+        ...(dxccObj.sota_ref !== undefined && { sota_ref: dxccObj.sota_ref || '' }),
+        ...(dxccObj.pota_ref !== undefined && { pota_ref: dxccObj.pota_ref || '' }),
+        ...(dxccObj.iota_ref !== undefined && { iota_ref: dxccObj.iota_ref || '' }),
+        ...(dxccObj.wwff_ref !== undefined && { wwff_ref: dxccObj.wwff_ref || '' }),
+        ...(dxccObj.isContest !== undefined && { isContest: Boolean(dxccObj.isContest) }),
+        ...(dxccObj.contestName && { contestName: dxccObj.contestName }),
+        ...(dxccObj.pota_mode && { pota_mode: dxccObj.pota_mode }),
+        ...(dxccObj.sota_mode && { sota_mode: dxccObj.sota_mode })
+    };
+}
+
+/**
+ * Validates and sanitizes a spot object for JSON serialization
+ * Ensures all numeric values are finite, DXCC objects are consistent,
+ * and the spot can be safely serialized to JSON
+ * @param {object} spot - Spot to validate
+ * @returns {object|null} - Sanitized spot or null if invalid
+ */
+function validateAndSanitizeSpot(spot) {
+    if (!spot || typeof spot !== 'object') {
+        console.warn('[JSON Validation] Spot is not an object');
+        return null;
+    }
+    
+    // Critical fields validation
+    if (!spot.spotted || !spot.spotter || !spot.frequency) {
+        console.warn(`[JSON Validation] Missing critical fields - spotted: ${spot.spotted}, spotter: ${spot.spotter}, frequency: ${spot.frequency}`);
+        return null;
+    }
+    
+    // Validate frequency is finite
+    const freq = sanitizeForJSON(spot.frequency);
+    if (freq === null) {
+        console.warn(`[JSON Validation] Invalid frequency (NaN/Infinity) for ${spot.spotted}: ${spot.frequency}`);
+        return null;
+    }
+    
+    // Normalize DXCC objects to ensure consistent structure
+    const normalizedSpot = {
+        spotter: String(spot.spotter),
+        spotted: String(spot.spotted),
+        frequency: freq,
+        message: String(spot.message || ''),
+        when: spot.when,
+        source: String(spot.source || ''),
+        band: String(spot.band || ''),
+        mode: spot.mode || null,
+        submode: spot.submode || null,
+        dxcc_spotter: normalizeDXCCObject(spot.dxcc_spotter),
+        dxcc_spotted: normalizeDXCCObject(spot.dxcc_spotted)
+    };
+    
+    // Preserve _sourceData if present (internal use only, stripped in API responses)
+    if (spot._sourceData) {
+        normalizedSpot._sourceData = spot._sourceData;
+    }
+    
+    // Final JSON serializability test
+    try {
+        JSON.stringify(normalizedSpot);
+        return normalizedSpot;
+    } catch (error) {
+        console.error(`[JSON Validation] Spot failed JSON serialization test: ${error.message}`);
+        console.error(`[JSON Validation] Problematic spot: spotter=${spot.spotter}, spotted=${spot.spotted}, frequency=${spot.frequency}`);
+        return null;
+    }
+}
+
+/**
  * Processes spots received from different sources and may add additional data points
  */
 async function handlespot(spot, spot_source = "cluster") {
@@ -1104,6 +1217,17 @@ async function handlespot(spot, spot_source = "cluster") {
 		
 		//lookup band
 		dxSpot.band = qrg2band(dxSpot.frequency * 1000);
+
+		// ====================================================================
+		// JSON VALIDATION: Sanitize spot before adding to cache
+		// ====================================================================
+		const sanitizedSpot = validateAndSanitizeSpot(dxSpot);
+		if (!sanitizedSpot) {
+			console.warn(`[JSON Validation] Rejected invalid spot from ${spot_source}: ${spot.spotted} by ${spot.spotter}`);
+			return;
+		}
+		// Replace dxSpot with sanitized version
+		dxSpot = sanitizedSpot;
 
 		// Check spot age - reject if too old
 		// RBN spots use shorter timeout from RBN_SPOT_TIMEOUT
