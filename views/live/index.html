@@ -1312,8 +1312,8 @@
                 table.removeChild(table.lastChild);
             }
 
-            // Update statistics - show actual displayed count
-            document.getElementById('totalSpots').textContent = displayedSpots.size;
+            // Note: totalSpots is updated by separate 5-second interval from /stats endpoint
+            // to show actual cache size, not just displayed/filtered spots
 
             // Track spots for rate calculation
             spotsInLastMinute.push(Date.now());

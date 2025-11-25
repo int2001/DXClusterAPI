@@ -885,6 +885,16 @@ async function startHttpServer() {
         setInterval(() => {
             cleanupOldSpots();
         }, 5 * 60 * 1000);
+        
+        // Start periodic statistics logging (every 15 minutes)
+        setInterval(() => {
+            logStatistics();
+        }, 15 * 60 * 1000);
+        
+        // Initial statistics log after 1 minute
+        setTimeout(() => {
+            logStatistics();
+        }, 60 * 1000);
     } catch (e) {
         console.error("[Core] Error starting HTTP server:", e);
         process.exit(99);
@@ -963,7 +973,7 @@ async function initializePersistence() {
                 for (const [callsign, entry] of loadResult.dxccCache.entries()) {
                     dxccCache.set(callsign, entry);
                 }
-                console.log(`[Persistence] Restored ${loadResult.dxccLoaded} DXCC cache entries`);
+                // Logging already done in persistence module
             }
             
             // Start auto-save with DXCC cache
@@ -1745,6 +1755,36 @@ function cleanupOldSpots() {
         spots = freshSpots;
         console.log(`[Core] Cleanup: removed ${removedCount} old spots (older than ${config.spotMaxAge} minutes)`);
     }
+}
+
+/**
+ * Logs periodic statistics summary
+ * Shows total requests, uptime, and spot counts by source
+ */
+function logStatistics() {
+    const uptimeSeconds = Math.floor(process.uptime());
+    const uptimeHours = Math.floor(uptimeSeconds / 3600);
+    const uptimeMinutes = Math.floor((uptimeSeconds % 3600) / 60);
+    
+    // Get spot counts by source
+    const sources = {};
+    sourceIndex.forEach((spotSet, sourceName) => {
+        sources[sourceName] = spotSet.size;
+    });
+    
+    // Format source breakdown
+    const sourceList = Object.entries(sources)
+        .map(([name, count]) => `${name}=${count}`)
+        .join(', ');
+    
+    // Get total requests from metrics
+    const metricsStatus = metrics.getStatus();
+    const totalRequests = metricsStatus.totalRequests || 0;
+    
+    console.log(`[Core] ═══════════════════════════════════════════════════════════════════════════`);
+    console.log(`[Core] Statistics: Uptime=${uptimeHours}h ${uptimeMinutes}m | Requests=${totalRequests} | Total Spots=${spots.length}`);
+    console.log(`[Core] Sources: ${sourceList || 'none'}`);
+    console.log(`[Core] ═══════════════════════════════════════════════════════════════════════════`);
 }
 
 // -----------------------------------
