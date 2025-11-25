@@ -261,6 +261,19 @@ if (config.fileLoggingEnabled) {
     console.warn = (...args) => { const line = stamp('WARN', args); try { logStream.write(line); } catch (_) {} _warn(...args); };
     console.error = (...args) => { const line = stamp('ERROR', args); try { logStream.write(line); } catch (_) {} _err(...args); };
 
+    // Build enabled modules list
+    const enabledModules = [];
+    if (config.clusterEnabled) enabledModules.push('DX Clusters');
+    if (config.includepotaspots) enabledModules.push('POTA');
+    if (config.includesotaspots) enabledModules.push('SOTA');
+    if (config.rbnEnabled) enabledModules.push('RBN');
+    if (config.persistenceEnabled) enabledModules.push('Persistence');
+    if (config.rateLimiterEnabled) enabledModules.push('Rate Limiter');
+    if (config.metricsEnabled) enabledModules.push('Metrics');
+    if (config.analyticsEnabled) enabledModules.push('Analytics');
+    if (config.modeClassifierEnabled) enabledModules.push('Mode Classifier');
+    const moduleList = enabledModules.length > 0 ? enabledModules.join(', ') : 'None';
+
     console.log('');
     console.log('[Core] ════════════════════════════════════════════════════════════');
     console.log('[Core] 🚀 DXClusterAPI Starting');
@@ -268,10 +281,24 @@ if (config.fileLoggingEnabled) {
     console.log('[Core]     PID:', process.pid);
     console.log('[Core]     Node.js:', process.versions.node);
     console.log('[Core]     Mode:', config.mode);
+    console.log('[Core]     Modules:', moduleList);
     console.log('[Core]     Log file:', LOG_FILE);
     console.log('[Core] ════════════════════════════════════════════════════════════');
     console.log('');
 } else {
+    // Build enabled modules list
+    const enabledModules = [];
+    if (config.clusterEnabled) enabledModules.push('DX Clusters');
+    if (config.includepotaspots) enabledModules.push('POTA');
+    if (config.includesotaspots) enabledModules.push('SOTA');
+    if (config.rbnEnabled) enabledModules.push('RBN');
+    if (config.persistenceEnabled) enabledModules.push('Persistence');
+    if (config.rateLimiterEnabled) enabledModules.push('Rate Limiter');
+    if (config.metricsEnabled) enabledModules.push('Metrics');
+    if (config.analyticsEnabled) enabledModules.push('Analytics');
+    if (config.modeClassifierEnabled) enabledModules.push('Mode Classifier');
+    const moduleList = enabledModules.length > 0 ? enabledModules.join(', ') : 'None';
+
     console.log('');
     console.log('[Core] ════════════════════════════════════════════════════════════');
     console.log('[Core] 🚀 DXClusterAPI Starting');
@@ -279,6 +306,7 @@ if (config.fileLoggingEnabled) {
     console.log('[Core]     PID:', process.pid);
     console.log('[Core]     Node.js:', process.versions.node);
     console.log('[Core]     Mode:', config.mode);
+    console.log('[Core]     Modules:', moduleList);
     console.log('[Core] ════════════════════════════════════════════════════════════');
     console.log('');
 }
@@ -860,15 +888,6 @@ async function startHttpServer() {
 
         // Initialize WebSocket on this server
         initializeWebSocket(server);
-        
-        // Log enabled modules
-        const modules = [];
-        if (config.clusterEnabled) modules.push('DX Clusters');
-        if (config.includepotaspots) modules.push('POTA');
-        if (config.includesotaspots) modules.push('SOTA');
-        const moduleStr = modules.length > 0 ? `${modules.join(', ')}` : 'None';
-        console.log(`[Core] Enabled modules: ${moduleStr}`);
-        console.log(`[Core] Spot cache: max ${config.maxcache} spots, max age ${config.spotMaxAge} minutes`);
         
         // Initialize DX Cluster connections
         clusterManager.init();
