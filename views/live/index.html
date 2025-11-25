@@ -2187,6 +2187,21 @@
         updateServerHealth();
         setInterval(updateServerHealth, 10000);
 
+        // Update total spots from cache every 5 seconds
+        async function updateTotalSpots() {
+            try {
+                const response = await fetch('/stats');
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('totalSpots').textContent = stats.entries || 0;
+                }
+            } catch (error) {
+                // Silently fail - don't update on error
+            }
+        }
+        updateTotalSpots();  // Initial update
+        setInterval(updateTotalSpots, 5000);  // Update every 5 seconds
+
         // Update spots per minute every 5 seconds
         setInterval(() => {
             const oneMinuteAgo = Date.now() - 60000;

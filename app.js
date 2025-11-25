@@ -276,7 +276,7 @@ if (config.fileLoggingEnabled) {
     // Support modules
     if (config.persistenceEnabled) enabledModules.push('Persistence');
     if (config.rateLimiterEnabled) enabledModules.push('Rate Limiter');
-    if (config.metricsEnabled) enabledModules.push('Metrics');
+    enabledModules.push('Metrics');  // Always enabled
     if (config.analyticsEnabled) enabledModules.push('Analytics');
     if (config.modeClassifierEnabled) enabledModules.push('Mode Classifier');
     const moduleList = enabledModules.length > 0 ? enabledModules.join(', ') : 'None';
@@ -308,7 +308,7 @@ if (config.fileLoggingEnabled) {
     // Support modules
     if (config.persistenceEnabled) enabledModules.push('Persistence');
     if (config.rateLimiterEnabled) enabledModules.push('Rate Limiter');
-    if (config.metricsEnabled) enabledModules.push('Metrics');
+    enabledModules.push('Metrics');  // Always enabled
     if (config.analyticsEnabled) enabledModules.push('Analytics');
     if (config.modeClassifierEnabled) enabledModules.push('Mode Classifier');
     const moduleList = enabledModules.length > 0 ? enabledModules.join(', ') : 'None';
@@ -976,7 +976,7 @@ async function initializePersistence() {
                     }
                 }
                 
-                console.log(`[Persistence] ✅ Successfully restored ${loadResult.loaded} spots (cache age: ${Math.round(loadResult.cacheAge / 1000)}s)`);
+                console.log(`[Persistence] Successfully restored ${loadResult.loaded} spots (cache age: ${Math.round(loadResult.cacheAge / 1000)}s)`);
             } else {
                 console.log('[Persistence] No cached spots to restore (starting fresh)');
             }
@@ -988,7 +988,7 @@ async function initializePersistence() {
                 for (const [callsign, entry] of loadResult.dxccCache.entries()) {
                     dxccCache.set(callsign, entry);
                 }
-                console.log(`[Persistence] ✅ Restored ${loadResult.dxccLoaded} DXCC cache entries`);
+                console.log(`[Persistence] Restored ${loadResult.dxccLoaded} DXCC cache entries`);
             }
             
             // Start auto-save with DXCC cache
