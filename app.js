@@ -912,7 +912,7 @@ async function initializePersistence() {
         console.log('[Persistence] Loading spot cache from disk...');
         
         try {
-            const loadResult = await Persistence.loadCache(config.persistencePath, config.spotMaxAge);
+            const loadResult = await Persistence.loadCache(config.persistencePath, config.spotMaxAge, DXCC_CACHE_TTL);
             
             if (loadResult.success && loadResult.spots.length > 0) {
                 // Restore spots array
@@ -966,11 +966,22 @@ async function initializePersistence() {
                 console.log('[Persistence] No cached spots to restore (starting fresh)');
             }
             
-            // Start auto-save regardless of load success
+            // Restore DXCC cache if available
+            if (loadResult.dxccCache && loadResult.dxccCache.size > 0) {
+                // Replace the existing dxccCache Map with restored data
+                dxccCache.clear();
+                for (const [callsign, entry] of loadResult.dxccCache.entries()) {
+                    dxccCache.set(callsign, entry);
+                }
+                console.log(`[Persistence] ✅ Restored ${loadResult.dxccLoaded} DXCC cache entries`);
+            }
+            
+            // Start auto-save with DXCC cache
             persistenceController = Persistence.startAutoSave(
                 () => spots,
                 config.persistenceInterval,
-                config.persistencePath
+                config.persistencePath,
+                () => dxccCache
             );
             
         } catch (error) {

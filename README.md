@@ -336,7 +336,7 @@ LIVE_PAGE_PASSWORD=MySecretPassword123
 
 ### Persistence Module (`PERSISTENCE_ENABLED`)
 - **Default**: `true` (enabled)
-- **Purpose**: Saves spot cache to disk and restores on startup
+- **Purpose**: Saves spot cache and DXCC cache to disk and restores on startup
 - **Location**: `modules/persistence/`
 - **Cache File**: `data/spots-cache.json` (configurable via `PERSISTENCE_PATH`)
 
@@ -348,25 +348,27 @@ PERSISTENCE_PATH=                 # Optional custom path (default: data/spots-ca
 ```
 
 **Features:**
-- **Automatic Saves**: Spot cache saved to disk every interval (default: 60 seconds)
-- **Startup Restoration**: Cache loaded on app start, filtered for expired spots
+- **Automatic Saves**: Spot cache and DXCC cache saved to disk every interval (default: 60 seconds)
+- **Startup Restoration**: Both caches loaded on app start, filtered for expired entries
 - **Atomic Writes**: Uses temp file + rename to prevent corruption
-- **Index Rebuilding**: All indexes (band, frequency, source, callsign) rebuilt from cache
-- **Statistics**: Tracks save count, file size, duration, and cache age
+- **Index Rebuilding**: All indexes (band, frequency, source, callsign) rebuilt from cached spots
+- **DXCC Cache Persistence**: Up to 20,000 callsign lookups restored (7-day TTL per callsign)
+- **Statistics**: Tracks save count, file size, duration, cache age, and DXCC entries
 
 **Benefits:**
 - API starts with existing spots instead of empty cache
-- Survives restarts/deployments without losing spot history
-- Reduces initial cluster connection load
+- **Eliminates DXCC API calls** on restart (saves thousands of callsign lookups to Wavelog)
+- Survives restarts/deployments without losing spot history or DXCC data
+- Reduces initial cluster connection load and PHP-FPM pressure
 - Maintains spot continuity for monitoring applications
 
 **Performance:**
-- Cache file size: ~200-500KB for 200 spots (typical `MAXCACHE` value)
-- Save duration: 10-50ms depending on disk speed
-- Load duration: 20-100ms including index rebuild
+- Cache file size: ~200-500KB for 200 spots + ~500KB-2MB for 20k callsign lookups
+- Save duration: 10-100ms depending on disk speed and cache size
+- Load duration: 20-200ms including index rebuild and DXCC restoration
 - Minimal I/O impact with 60+ second intervals
 
-**Note**: Expired spots are automatically filtered during load based on `SPOT_MAX_AGE` setting.
+**Note**: Expired spots (`SPOT_MAX_AGE`) and DXCC entries (7 days) are automatically filtered during load.
 
 ### Metrics Module
 - **Default**: Enabled automatically
