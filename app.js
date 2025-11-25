@@ -155,7 +155,7 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         config.persistencePath = config.persistencePath || path.join(__dirname, 'data', 'spots-cache.json');
         config.trustProxy = config.trustProxy !== false;  // Default true
     } catch (e) {
-        console.error('No .env file or config.js found! Please create one based on .env.sample');
+        console.error('[Core] No .env file or config.js found! Please create one based on .env.sample');
         process.exit(1);
     }
 }
@@ -189,15 +189,15 @@ function validateConfig() {
     
     // Log results
     if (errors.length > 0) {
-        console.error('Configuration errors:');
-        errors.forEach(err => console.error(`  ❌ ${err}`));
-        console.error('\nPlease fix the errors above and restart the application.');
+        console.error('[Core] Configuration errors:');
+        errors.forEach(err => console.error(`[Core]   ❌ ${err}`));
+        console.error('[Core] \nPlease fix the errors above and restart the application.');
         process.exit(1);
     }
     
     if (warnings.length > 0) {
-        console.warn('Configuration warnings:');
-        warnings.forEach(warn => console.warn(`  ⚠️  ${warn}`));
+        console.warn('[Core] Configuration warnings:');
+        warnings.forEach(warn => console.warn(`[Core]   ⚠️  ${warn}`));
     }
 }
 
@@ -261,9 +261,26 @@ if (config.fileLoggingEnabled) {
     console.warn = (...args) => { const line = stamp('WARN', args); try { logStream.write(line); } catch (_) {} _warn(...args); };
     console.error = (...args) => { const line = stamp('ERROR', args); try { logStream.write(line); } catch (_) {} _err(...args); };
 
-    console.log('--- App starting --- PID:', process.pid, 'Node:', process.versions.node, 'Mode:', config.mode, 'Log:', LOG_FILE);
+    console.log('');
+    console.log('[Core] ════════════════════════════════════════════════════════════');
+    console.log('[Core] 🚀 DXClusterAPI Starting');
+    console.log('[Core] ════════════════════════════════════════════════════════════');
+    console.log('[Core] 📋 PID:', process.pid);
+    console.log('[Core] 🟢 Node.js:', process.versions.node);
+    console.log('[Core] ⚙️  Mode:', config.mode);
+    console.log('[Core] 📝 Log file:', LOG_FILE);
+    console.log('[Core] ════════════════════════════════════════════════════════════');
+    console.log('');
 } else {
-    console.log('--- App starting --- PID:', process.pid, 'Node:', process.versions.node, 'Mode:', config.mode);
+    console.log('');
+    console.log('[Core] ════════════════════════════════════════════════════════════');
+    console.log('[Core] 🚀 DXClusterAPI Starting');
+    console.log('[Core] ════════════════════════════════════════════════════════════');
+    console.log('[Core] 📋 PID:', process.pid);
+    console.log('[Core] 🟢 Node.js:', process.versions.node);
+    console.log('[Core] ⚙️  Mode:', config.mode);
+    console.log('[Core] ════════════════════════════════════════════════════════════');
+    console.log('');
 }
 
 /**
@@ -272,7 +289,7 @@ if (config.fileLoggingEnabled) {
  * @param {string} level - Log level (INFO, WARN, ERROR)
  */
 function logToFile(message, level = 'INFO') {
-    console.log(message);
+    console.log('[Core] ' + message);
 }
 
 
@@ -300,7 +317,7 @@ app.use(express.json());
 // This allows express-rate-limit to correctly identify users via X-Forwarded-For header
 if (config.trustProxy) {
     app.set('trust proxy', true);
-    console.log('Trust proxy enabled - X-Forwarded-For headers will be respected');
+    console.log('[Core] Trust proxy enabled - X-Forwarded-For headers will be respected');
 }
 
 // Add API version header to all responses
@@ -309,19 +326,25 @@ app.use((req, res, next) => {
     next();
 });
 
-// Skip logging for /spots and /health endpoints to reduce noise
+// Skip logging for high-frequency endpoints to reduce noise
 morgan.token('skip-logging', (req, res) => {
-    return (req.url.startsWith(config.baseUrl + '/spots') || req.url.startsWith(config.baseUrl + '/health')) ? 'skip' : null;
+    return (req.url.startsWith(config.baseUrl + '/spots') || 
+            req.url.startsWith(config.baseUrl + '/health') ||
+            req.url.startsWith(config.baseUrl + '/logs')) ? 'skip' : null;
 });
 
 if (morganStream) {
     app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" :response-time ms', { 
         stream: morganStream,
-        skip: (req, res) => req.url.startsWith(config.baseUrl + '/spots') || req.url.startsWith(config.baseUrl + '/health')
+        skip: (req, res) => req.url.startsWith(config.baseUrl + '/spots') || 
+                           req.url.startsWith(config.baseUrl + '/health') ||
+                           req.url.startsWith(config.baseUrl + '/logs')
     }));
 }
 app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" :response-time ms', {
-    skip: (req, res) => req.url.startsWith(config.baseUrl + '/spots') || req.url.startsWith(config.baseUrl + '/health')
+    skip: (req, res) => req.url.startsWith(config.baseUrl + '/spots') || 
+                       req.url.startsWith(config.baseUrl + '/health') ||
+                       req.url.startsWith(config.baseUrl + '/logs')
 }));
 app.use(cors({ origin: '*' }));
 
@@ -381,9 +404,9 @@ const apiv1 = new APIv1(
 // Mount API v1 router if enabled
 if (config.apiv1Enabled) {
     app.use(apiv1.createRouter(rateLimiter.getDataLimiter(), responseCacheMiddleware(55 * 1000)));
-    console.log('API v1 endpoints enabled with rate limiting and 55-second response cache');
+    console.log('[Core] API v1 endpoints enabled with rate limiting and 55-second response cache');
 } else {
-    console.log('API v1 endpoints disabled');
+    console.log('[Core] API v1 endpoints disabled');
 }
 
 // ================================================================
@@ -400,9 +423,9 @@ const apiv2 = new APIv2({
 // Mount API v2 router if enabled
 if (config.apiv2Enabled) {
     app.use(config.baseUrl + '/api/v2', apiv2.createRouter(rateLimiter.getDataLimiter(), responseCacheMiddleware(55 * 1000)));
-    console.log('API v2 enabled at ' + config.baseUrl + '/api/v2' + (apiv2.getStatus().requiresAuth ? ' (authentication required)' : ' (no authentication)') + ' with rate limiting and 55-second response cache');
+    console.log('[Core] API v2 enabled at ' + config.baseUrl + '/api/v2' + (apiv2.getStatus().requiresAuth ? ' (authentication required)' : ' (no authentication)') + ' with rate limiting and 55-second response cache');
 } else {
-    console.log('API v2 disabled');
+    console.log('[Core] API v2 disabled');
 }
 
 // ================================================================
@@ -495,10 +518,10 @@ if (config.livePageEnabled) {
         res.sendFile(livePagePath);
     });
     
-    console.log('Live page enabled at ' + config.baseUrl + '/live' + 
+    console.log('[Core] Live page enabled at ' + config.baseUrl + '/live' + 
                 (config.livePagePassword ? ' (password protected)' : ''));
 } else {
-    console.log('Live page disabled');
+    console.log('[Core] Live page disabled');
 }
 
 // API Analytics endpoint - shows who is using the API
@@ -528,7 +551,7 @@ function broadcastSpot(spot) {
             try {
                 client.send(message);
             } catch (error) {
-                console.error('Error sending to WebSocket client:', error);
+                console.error('[Core] Error sending to WebSocket client:', error);
                 wsClients.delete(client);
                 deadCount++;
             }
@@ -541,7 +564,7 @@ function broadcastSpot(spot) {
     
     // Log cleanup if any dead clients were found
     if (deadCount > 0) {
-        console.log(`Cleaned up ${deadCount} dead WebSocket clients. Active: ${wsClients.size}`);
+        console.log(`[Core] Cleaned up ${deadCount} dead WebSocket clients. Active: ${wsClients.size}`);
     }
 }
 
@@ -672,7 +695,7 @@ app.get(config.baseUrl + '/metrics', async (req, res) => {
         res.set('Content-Type', metrics.getContentType());
         res.end(metricsData);
     } catch (error) {
-        console.error('Error generating metrics:', error);
+        console.error('[Core] Error generating metrics:', error);
         res.status(500).json({ error: 'Failed to generate metrics' });
     }
 });
@@ -713,7 +736,7 @@ app.get(config.baseUrl + '/logs', (req, res) => {
             file: path.basename(logFile)
         });
     } catch (error) {
-        console.error('Error reading log file:', error);
+        console.error('[Core] Error reading log file:', error);
         res.status(500).json({ error: 'Failed to read log file' });
     }
 });
@@ -727,7 +750,7 @@ app.get(config.baseUrl + '/logs', (req, res) => {
  */
 function initializeWebSocket(server) {
     if (!config.websocketEnabled) {
-        console.log('WebSocket disabled in configuration');
+        console.log('[Core] WebSocket disabled in configuration');
         return null;
     }
 
@@ -738,18 +761,18 @@ function initializeWebSocket(server) {
 
     wss.on('connection', (ws, req) => {
         wsClients.add(ws);
-        console.log(`WebSocket client connected from ${req.socket.remoteAddress}. Total clients: ${wsClients.size}`);
+        console.log(`[Core] WebSocket client connected from ${req.socket.remoteAddress}. Total clients: ${wsClients.size}`);
 
         // Send initial connection confirmation
         ws.send(JSON.stringify({ type: 'connected', message: 'WebSocket connected' }));
 
         ws.on('close', () => {
             wsClients.delete(ws);
-            console.log(`WebSocket client disconnected. Total clients: ${wsClients.size}`);
+            console.log(`[Core] WebSocket client disconnected. Total clients: ${wsClients.size}`);
         });
 
         ws.on('error', (error) => {
-            console.error('WebSocket client error:', error.message);
+            console.error('[Core] WebSocket client error:', error.message);
             wsClients.delete(ws);
         });
         
@@ -761,7 +784,7 @@ function initializeWebSocket(server) {
     });
 
     wss.on('error', (error) => {
-        console.error('WebSocket server error:', error.message);
+        console.error('[Core] WebSocket server error:', error.message);
     });
     
     // Periodic ping to detect dead connections (every 30 seconds)
@@ -790,14 +813,14 @@ function initializeWebSocket(server) {
         
         // Log cleanup if any dead clients were found
         if (deadCount > 0) {
-            console.log(`Ping/pong cleanup: removed ${deadCount} dead clients. Active: ${wsClients.size}`);
+            console.log(`[Core] Ping/pong cleanup: removed ${deadCount} dead clients. Active: ${wsClients.size}`);
         }
     }, 30000);
     
     // Store interval so we can clear it on shutdown
     wss.pingInterval = pingInterval;
 
-    console.log(`WebSocket server initialized on path /ws`);
+    console.log(`[Core] WebSocket server initialized on path /ws`);
     return wss;
 }
 
@@ -812,7 +835,7 @@ async function startHttpServer() {
         const HOST = process.env.HOST || (config.mode === 'docker' ? '0.0.0.0' : '127.0.0.1');
         
         const server = app.listen(PORT, HOST, () => {
-            console.log(`HTTP server listening on ${HOST}:${PORT}`);
+            console.log(`[Core] HTTP server listening on ${HOST}:${PORT}`);
         });
 
         // Initialize WebSocket on this server
@@ -824,8 +847,8 @@ async function startHttpServer() {
         if (config.includepotaspots) modules.push('POTA');
         if (config.includesotaspots) modules.push('SOTA');
         const moduleStr = modules.length > 0 ? `${modules.join(', ')}` : 'None';
-        console.log(`Enabled modules: ${moduleStr}`);
-        console.log(`Spot cache: max ${config.maxcache} spots, max age ${config.spotMaxAge} minutes`);
+        console.log(`[Core] Enabled modules: ${moduleStr}`);
+        console.log(`[Core] Spot cache: max ${config.maxcache} spots, max age ${config.spotMaxAge} minutes`);
         
         // Initialize DX Cluster connections
         clusterManager.init();
@@ -835,7 +858,7 @@ async function startHttpServer() {
             cleanupOldSpots();
         }, 5 * 60 * 1000);
     } catch (e) {
-        console.error("Error starting HTTP server:", e);
+        console.error("[Core] Error starting HTTP server:", e);
         process.exit(99);
     }
 }
@@ -855,11 +878,11 @@ function gracefulShutdown(signal) {
     if (isShuttingDown) return;
     isShuttingDown = true;
     
-    console.log(`\n${signal} received, starting graceful shutdown...`);
+    console.log(`[Core] \n${signal} received, starting graceful shutdown...`);
     
     // Close WebSocket connections
     if (wsClients.size > 0) {
-        console.log(`Closing ${wsClients.size} WebSocket connections...`);
+        console.log(`[Core] Closing ${wsClients.size} WebSocket connections...`);
         wsClients.forEach(client => {
             try {
                 client.close(1001, 'Server shutting down');
@@ -881,7 +904,7 @@ function gracefulShutdown(signal) {
     if (logStream) {
         try {
             logStream.end();
-            console.log('Log stream closed');
+            console.log('[Core] Log stream closed');
         } catch (e) {}
     }
     
@@ -890,7 +913,7 @@ function gracefulShutdown(signal) {
         analytics.stop();
     }
     
-    console.log('Graceful shutdown complete');
+    console.log('[Core] Graceful shutdown complete');
     
     // Only exit if NOT in Passenger mode (Passenger manages the process lifecycle)
     if (config.mode !== 'passenger') {
@@ -905,14 +928,14 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Handle uncaught errors (works in all modes)
 process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error);
+    console.error('[Core] Uncaught Exception:', error);
     if (!isShuttingDown) {
         gracefulShutdown('UNCAUGHT_EXCEPTION');
     }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Promise Rejection at:', promise, 'reason:', reason);
+    console.error('[Core] Unhandled Promise Rejection at:', promise, 'reason:', reason);
 });
 
 // -----------------------------------
@@ -1172,7 +1195,7 @@ async function handlespot(spot, spot_source = "cluster") {
 		// All frequencies should be in kHz with 1 decimal place
 		const normalizedFreq = normalizeFrequency(spot.frequency);
 		if (isNaN(normalizedFreq)) {
-			console.warn(`Invalid frequency for spot from ${spot.spotter}: ${spot.frequency}`);
+			console.warn(`[Core] Invalid frequency for spot from ${spot.spotter}: ${spot.frequency}`);
 			return;
 		}
 		
@@ -1234,7 +1257,7 @@ async function handlespot(spot, spot_source = "cluster") {
 			dxSpot.dxcc_spotted = await dxcc_lookup(spot.spotted);
 		} catch (dxccError) {
 			// If DXCC lookup fails, continue with empty DXCC data
-			console.warn(`DXCC lookup failed: ${dxccError.message}`);
+			console.warn(`[Core] DXCC lookup failed: ${dxccError.message}`);
 			dxSpot.dxcc_spotter = {};
 			dxSpot.dxcc_spotted = {};
 		}
@@ -1369,12 +1392,10 @@ async function handlespot(spot, spot_source = "cluster") {
 		// Two-phase eviction: 1) Remove expired RBN spots, 2) LRU eviction if still needed
 		if (spots.length >= config.maxcache) {
 			// Phase 1: Remove expired RBN spots (they're stale after 5 minutes)
-			const expiredCount = cleanupExpiredRBN();
-			if (expiredCount > 0) {
-				console.log(`Cache full: removed ${expiredCount} expired RBN spots, now ${spots.length} spots`);
-			}
-			
-			// Phase 2: If still full after RBN cleanup, do LRU eviction
+            const expiredCount = cleanupExpiredRBN();
+            if (expiredCount > 0) {
+                console.log(`[Core] Cache full: removed ${expiredCount} expired RBN spots, now ${spots.length} spots`);
+            }			// Phase 2: If still full after RBN cleanup, do LRU eviction
 			if (spots.length >= config.maxcache) {
 				const batchSize = Math.max(Math.floor(config.maxcache * 0.1), 10); // Remove at least 10 spots
 				
@@ -1386,12 +1407,12 @@ async function handlespot(spot, spot_source = "cluster") {
 				// Clean up indexes
 				removedSpots.forEach(spot => removeFromIndexes(spot));
 				
-				console.log(`Cache still full (${config.maxcache}): removed ${batchSize} oldest spots, now ${spots.length} spots`);
+				console.log(`[Core] Cache still full (${config.maxcache}): removed ${batchSize} oldest spots, now ${spots.length} spots`);
 			}
 		}
 		
 	} catch(e) { 
-		console.error("Error processing spot:", e);
+		console.error("[Core] Error processing spot:", e);
 	} 
 }
 
@@ -1600,7 +1621,7 @@ function cleanupOldSpots() {
         // Atomic replacement: assign new array reference instead of mutating
         // This prevents race conditions during API reads
         spots = freshSpots;
-        console.log(`Cleanup: removed ${removedCount} old spots (older than ${config.spotMaxAge} minutes)`);
+        console.log(`[Core] Cleanup: removed ${removedCount} old spots (older than ${config.spotMaxAge} minutes)`);
     }
 }
 
@@ -1881,10 +1902,10 @@ async function performDxccLookup(call) {
 
         // Log the error with server info on first failure, then only log every 10th error
         if (consecutiveErrorCount === 1) {
-            console.error(`DXCC lookup failed for callsign: ${call}`);
-            console.error(`Served by WaveLog server: ${dxccServer}`);
+            console.error(`[Core] DXCC lookup failed for callsign: ${call}`);
+            console.error(`[Core] Served by WaveLog server: ${dxccServer}`);
         } else if (consecutiveErrorCount % 10 === 0) {
-            console.error(`DXCC lookup failed: ${consecutiveErrorCount} consecutive errors`);
+            console.error(`[Core] DXCC lookup failed: ${consecutiveErrorCount} consecutive errors`);
         }
         
         // Cache failed lookups for 5 minutes to avoid hammering on bad callsigns
