@@ -103,7 +103,9 @@ async function loadCache(filePath, spotMaxAge) {
         const now = Date.now();
         const maxAgeMs = spotMaxAge * 60 * 1000;
         const validSpots = cacheData.spots.filter(spot => {
-            const spotAge = now - spot.time;
+            // spot.when is ISO string in UTC (e.g., "2025-11-25T22:41:00.000Z")
+            const spotTimestamp = Date.parse(spot.when);
+            const spotAge = now - spotTimestamp;
             return spotAge <= maxAgeMs;
         });
         
