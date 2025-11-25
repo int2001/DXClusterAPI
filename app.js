@@ -8,6 +8,7 @@ const SOTASpots = require('./modules/sota');
 const RBNManager = require('./modules/rbn');
 const ModeClassifier = require('./modules/modeclassifier');
 const Enrichment = require('./modules/enrichment');
+const Persistence = require('./modules/persistence');
 const Analytics = require('./modules/analytics');
 const Clusters = require('./modules/clusters');
 const APIv1 = require('./modules/apiv1');
@@ -123,6 +124,11 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         fileLoggingEnabled: process.env.FILE_LOGGING_ENABLED !== 'false',
         logRetentionDays: parseInt(process.env.LOG_RETENTION_DAYS) || 3,
         
+        // Persistence configuration
+        persistenceEnabled: process.env.PERSISTENCE_ENABLED !== 'false',
+        persistenceInterval: parseInt(process.env.PERSISTENCE_INTERVAL) || 60,
+        persistencePath: process.env.PERSISTENCE_PATH || path.join(__dirname, 'data', 'spots-cache.json'),
+        
         // Proxy configuration
         trustProxy: process.env.TRUST_PROXY !== 'false'  // Default true for reverse proxy compatibility
     };
@@ -144,6 +150,9 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         config.logRetentionDays = config.logRetentionDays || 3;
         config.spotMaxAge = config.spotMaxAge || 120;
         config.maxConcurrentDxcc = config.maxConcurrentDxcc || 2;
+        config.persistenceEnabled = config.persistenceEnabled !== false;
+        config.persistenceInterval = config.persistenceInterval || 60;
+        config.persistencePath = config.persistencePath || path.join(__dirname, 'data', 'spots-cache.json');
         config.trustProxy = config.trustProxy !== false;  // Default true
     } catch (e) {
         console.error('No .env file or config.js found! Please create one based on .env.sample');
@@ -638,6 +647,10 @@ app.get(config.baseUrl + '/health', (req, res) => {
             },
             metrics: metrics.getStatus(),
             rateLimiter: rateLimiter.getStatus(),
+            persistence: config.persistenceEnabled ? {
+                enabled: true,
+                stats: persistenceController ? persistenceController.getStats() : null
+            } : false,
             apiv1: {
                 enabled: config.apiv1Enabled
             },
@@ -1886,6 +1899,82 @@ async function performDxccLookup(call) {
         return {};
     }
 }
+
+// ================================================================
+// Persistence Module - Load Cache on Startup
+// ================================================================
+let persistenceController = null;
+
+if (config.persistenceEnabled) {
+    console.log('[Persistence] Loading spot cache from disk...');
+    
+    (async () => {
+        const loadResult = await Persistence.loadCache(config.persistencePath, config.spotMaxAge);
+        
+        if (loadResult.success && loadResult.spots.length > 0) {
+            // Restore spots array
+            spots = loadResult.spots;
+            
+            // Rebuild all indexes from loaded spots
+            console.log('[Persistence] Rebuilding indexes...');
+            
+            for (const spot of spots) {
+                // Rebuild callsign index (spotKey)
+                const spotKey = `${spot.spotted}_${spot.frequency}_${spot.source}`;
+                spotKeyIndex.set(spotKey, spot);
+                
+                // Rebuild band index
+                const band = spot.band;
+                if (!bandIndex.has(band)) {
+                    bandIndex.set(band, new Set());
+                }
+                bandIndex.get(band).add(spot);
+                
+                // Rebuild frequency index
+                const normFreq = normalizeFrequency(spot.frequency);
+                frequencyIndex.set(normFreq, spot);
+                
+                // Rebuild source index
+                const source = spot.source;
+                if (!sourceIndex.has(source)) {
+                    sourceIndex.set(source, new Set());
+                }
+                sourceIndex.get(source).add(spot);
+                
+                // Rebuild statistics
+                const modeType = spot.mode_type || 'unknown';
+                modeTypeStats[modeType] = (modeTypeStats[modeType] || 0) + 1;
+                
+                if (spot.dxcc_spotted?.continent) {
+                    continentStats[spot.dxcc_spotted.continent] = (continentStats[spot.dxcc_spotted.continent] || 0) + 1;
+                }
+                
+                if (spot.dxcc_spotter?.continent) {
+                    continentDeStats[spot.dxcc_spotter.continent] = (continentDeStats[spot.dxcc_spotter.continent] || 0) + 1;
+                }
+                
+                if (spot.source === 'rbn') {
+                    rbnSpotCount++;
+                }
+            }
+            
+            console.log(`[Persistence] Successfully restored ${loadResult.loaded} spots (cache age: ${Math.round(loadResult.cacheAge / 1000)}s)`);
+        }
+        
+        // Start auto-save regardless of load success
+        persistenceController = Persistence.startAutoSave(
+            () => spots,
+            config.persistenceInterval,
+            config.persistencePath
+        );
+        
+    })().catch(error => {
+        console.error('[Persistence] Initialization error:', error.message);
+    });
+} else {
+    console.log('[Persistence] Disabled');
+}
+
 // ================================================================
 // Export for Phusion Passenger
 // ================================================================
