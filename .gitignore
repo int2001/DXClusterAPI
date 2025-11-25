@@ -4,8 +4,6 @@
 
 # Dependencies
 node_modules/
-package-lock.json
-yarn.lock
 
 # Configuration files (use .env.sample as template)
 .env
