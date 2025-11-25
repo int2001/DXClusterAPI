@@ -343,28 +343,33 @@ function isAlreadyEnriched(dxccSpotted) {
  * @returns {object} - The enriched spot object
  */
 function applyEnrichment(dxSpot, spot_source = "cluster") {
+    // Ensure dxcc_spotted exists
+    dxSpot.dxcc_spotted = dxSpot.dxcc_spotted || {};
+    
     // Only enrich if not already enriched (prevents double enrichment)
     if (!isAlreadyEnriched(dxSpot.dxcc_spotted)) {
         const enrichedMetadata = enrichSpotMetadata(dxSpot);
         
-        // Merge enriched metadata into dxcc_spotted (preserve existing data)
-        dxSpot.dxcc_spotted = dxSpot.dxcc_spotted || {};
-        
-        // Only override if not already set by specific modules
+        // Only override if not already set by specific modules (POTA/SOTA)
         if (!dxSpot.dxcc_spotted.sota_ref && enrichedMetadata.sota_ref) {
             dxSpot.dxcc_spotted.sota_ref = enrichedMetadata.sota_ref;
-        }
-        if (!dxSpot.dxcc_spotted.pota_ref && enrichedMetadata.pota_ref) {
-            dxSpot.dxcc_spotted.pota_ref = enrichedMetadata.pota_ref;
+        } else if (!dxSpot.dxcc_spotted.sota_ref) {
+            // Ensure property exists even if no match found
+            dxSpot.dxcc_spotted.sota_ref = '';
         }
         
-        // Always add IOTA, WWFF, and contest detection (module data doesn't provide these)
-        dxSpot.dxcc_spotted.iota_ref = enrichedMetadata.iota_ref;
-        dxSpot.dxcc_spotted.wwff_ref = enrichedMetadata.wwff_ref;
-        dxSpot.dxcc_spotted.isContest = enrichedMetadata.isContest;
-        if (enrichedMetadata.contestName) {
-            dxSpot.dxcc_spotted.contestName = enrichedMetadata.contestName;
+        if (!dxSpot.dxcc_spotted.pota_ref && enrichedMetadata.pota_ref) {
+            dxSpot.dxcc_spotted.pota_ref = enrichedMetadata.pota_ref;
+        } else if (!dxSpot.dxcc_spotted.pota_ref) {
+            // Ensure property exists even if no match found
+            dxSpot.dxcc_spotted.pota_ref = '';
         }
+        
+        // Always add these fields (module data doesn't provide them)
+        dxSpot.dxcc_spotted.iota_ref = enrichedMetadata.iota_ref || '';
+        dxSpot.dxcc_spotted.wwff_ref = enrichedMetadata.wwff_ref || '';
+        dxSpot.dxcc_spotted.isContest = enrichedMetadata.isContest || false;
+        dxSpot.dxcc_spotted.contestName = enrichedMetadata.contestName || '';
     } else {
         // Already enriched - ensure all fields exist with defaults if missing
         dxSpot.dxcc_spotted.sota_ref = dxSpot.dxcc_spotted.sota_ref || '';
@@ -372,6 +377,7 @@ function applyEnrichment(dxSpot, spot_source = "cluster") {
         dxSpot.dxcc_spotted.iota_ref = dxSpot.dxcc_spotted.iota_ref || '';
         dxSpot.dxcc_spotted.wwff_ref = dxSpot.dxcc_spotted.wwff_ref || '';
         dxSpot.dxcc_spotted.isContest = dxSpot.dxcc_spotted.isContest || false;
+        dxSpot.dxcc_spotted.contestName = dxSpot.dxcc_spotted.contestName || '';
     }
     
     return dxSpot;
