@@ -208,6 +208,7 @@ validateConfig();
 // ================================================================
 const LOG_DIR = path.join(__dirname, 'logs');
 let logStream = null;
+let LOG_FILE = null;
 
 if (config.fileLoggingEnabled) {
     try { 
@@ -223,7 +224,7 @@ if (config.fileLoggingEnabled) {
     }
 
     const today = new Date();
-    const LOG_FILE = path.join(LOG_DIR, `app-${fmtDate(today)}.log`);
+    LOG_FILE = path.join(LOG_DIR, `app-${fmtDate(today)}.log`);
 
     // Prune old logs
     try {
