@@ -314,25 +314,25 @@ RBN_FT8_ENABLED=false            # Enable FT8 feed (port 7001)
 
 **Note**: Requires a valid amateur radio callsign for RBN login. RBN spots appear with `source: "rbn"` in the API. FT8 feed generates very high spot volumes - enable only if needed.
 
-### Demo Page (`DEMO_ENABLED`)
+### Info Page (`INFO_PAGE_ENABLED`)
 - **Default**: `true` (enabled)
-- **Purpose**: Serves the built-in demo web interface at `/demo`
-- **Location**: `public/index.html`
+- **Purpose**: Serves the built-in info web interface at `/info`
+- **Location**: `public/info/index.html`
 - **Features**: Real-time spot display, WebSocket updates, JSON inspection, logs viewer
 
 **Password Protection:**
-Optionally protect the demo page with HTTP Basic Authentication by setting `DEMO_PASSWORD`:
+Optionally protect the info page with HTTP Basic Authentication by setting `INFO_PAGE_PASSWORD`:
 
 **Example:**
 ```bash
-DEMO_ENABLED=true
-DEMO_PASSWORD=MySecretPassword123
+INFO_PAGE_ENABLED=true
+INFO_PAGE_PASSWORD=MySecretPassword123
 ```
 
 **Note**: 
-- When disabled, the `/demo` endpoint will not be available
-- When `DEMO_PASSWORD` is empty, the demo page is publicly accessible
-- When `DEMO_PASSWORD` is set, browsers will prompt for authentication (username is ignored, only password is checked)
+- When disabled, the `/info` endpoint will not be available
+- When `INFO_PAGE_PASSWORD` is empty, the info page is publicly accessible
+- When `INFO_PAGE_PASSWORD` is set, browsers will prompt for authentication (username is ignored, only password is checked)
 
 ### Metrics Module
 - **Default**: Enabled automatically
@@ -458,9 +458,9 @@ mkdir -p tmp && touch tmp/restart.txt
 **Important Notes:**
 
 - **MyDevil.net and similar hosts:** Do NOT use `.htaccess` files in the application directory. Configure the Node.js app through your hosting control panel (e.g., DevilWEB). The entry point should be `index.js` and the app type should be set to `nodejs`.
-- **Static file collision:** If your hosting serves `index.html` automatically at the domain root, the demo page is intentionally served at `/demo` to avoid conflicts. The root path `/` returns API information as JSON.
+- **Static file collision:** If your hosting serves `index.html` automatically at the domain root, the info page is intentionally served at `/info` to avoid conflicts. The root path `/` returns API information as JSON.
 - **Application structure:** Ensure files are in `~/domains/DOMAIN/public_nodejs/` directory
-- **Static files:** Place in `public/` subdirectory - they are served at `/demo`
+- **Static files:** Place in `public/info/` subdirectory - they are served at `/info`
 - **Restart:** Use `mkdir -p tmp && touch tmp/restart.txt` or hosting panel restart command
 
 **Typical directory structure:**
@@ -534,7 +534,7 @@ Returns API information and available endpoints. Both endpoints return identical
         "spotByFrequency": "/spot/:qrg",
         "stats": "/stats",
         "health": "/health",
-        "demo": "/demo"
+        "infoPage": "/info"
       }
     },
     "v2": {
@@ -554,9 +554,9 @@ Returns API information and available endpoints. Both endpoints return identical
 }
 ```
 
-### Demo Page
+### Info Page
 ```http
-GET /demo
+GET /info
 ```
 
 Interactive web interface showing real-time spots. The page will automatically:
@@ -564,7 +564,7 @@ Interactive web interface showing real-time spots. The page will automatically:
 - **Fall back to polling** if WebSocket is unavailable (common on shared hosting)
 - Display connection status and mode (WebSocket or Polling)
 
-Access at `http://yourserver.com/demo` (or `http://yourserver.com/demo/index.html` if your hosting serves static files at root).
+Access at `http://yourserver.com/info` (or `http://yourserver.com/info/index.html` if your hosting serves static files at root).
 
 #### API v1: Get All Spots
 ```http
@@ -920,7 +920,7 @@ Returns detailed information about API clients and usage patterns. Tracks who is
 
 **Excluded from Tracking:**
 - `/health` endpoint
-- `/demo` endpoint and static files
+- `/info` endpoint and static files
 - `/analytics` endpoint itself
 
 ### API v2 Endpoints (Modern REST)
@@ -1590,9 +1590,9 @@ const authResponse = await fetch('http://localhost:3000/api/v2/spots?pota=true',
 
 **Note:** API v2 uses **URL query parameters** (not JSON body). All filters are passed as query strings in the URL.
 
-### Demo Web Interface
+### Info Web Interface
 ```http
-GET /demo
+GET /info
 ```
 
 Access the built-in web interface for viewing spots.
@@ -1639,7 +1639,7 @@ CLUSTER_ENABLED=true
 ENRICHMENT_ENABLED=true
 MODE_CLASSIFIER_ENABLED=true
 ANALYTICS_ENABLED=true
-DEMO_ENABLED=true
+INFO_PAGE_ENABLED=true
 ```
 
 ### Adding More Modules
@@ -1696,7 +1696,9 @@ DXClusterAPI/
 │   └── modeclassifier/   # Mode classification module
 │       └── index.js
 ├── public/
-│   ├── index.html        # Demo web interface
+│   ├── info/
+│   │   └── index.html    # Info web interface
+│   ├── index.html        # Redirect to wavelog.org
 │   └── robots.txt        # Search engine exclusion
 ├── data/                 # Data files (analytics, etc.)
 └── logs/                 # Log files (auto-created)
@@ -1722,10 +1724,10 @@ CLUSTERS=[
 
 ### WebSocket Not Working in Passenger Mode
 
-WebSocket protocol upgrades are often blocked by reverse proxies on shared hosting. The demo page automatically detects this and falls back to polling mode (fetching `/spots` every 2 seconds).
+WebSocket protocol upgrades are often blocked by reverse proxies on shared hosting. The info page automatically detects this and falls back to polling mode (fetching `/spots` every 2 seconds).
 
 **Options:**
-- **Recommended:** Leave `WEBSOCKET_ENABLED=true` - the demo page will auto-detect and use polling
+- **Recommended:** Leave `WEBSOCKET_ENABLED=true` - the info page will auto-detect and use polling
 - **Alternative:** Set `WEBSOCKET_ENABLED=false` to disable WebSocket server initialization entirely
 
 Both approaches work on shared hosting. The polling fallback provides a seamless user experience.
@@ -1900,8 +1902,8 @@ If you're experiencing high RAM usage (>1GB):
    ```
    Check `cache.dxccCache` value. It should grow over time.
 
-3. **Check demo page memory details**:
-   - Open demo page (`/demo`)
+3. **Check info page memory details**:
+   - Open info page (`/info`)
    - Click the "🧠 System Info" button
    - Review cache statistics and memory usage
 

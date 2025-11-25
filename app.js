@@ -115,9 +115,9 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         // WebSocket configuration
         websocketEnabled: process.env.WEBSOCKET_ENABLED !== 'false',
         
-        // Demo page configuration
-        demoEnabled: process.env.DEMO_ENABLED !== 'false',
-        demoPassword: process.env.DEMO_PASSWORD || '',
+        // Info page configuration
+        infoPageEnabled: process.env.INFO_PAGE_ENABLED !== 'false',
+        infoPagePassword: process.env.INFO_PAGE_PASSWORD || '',
         
         // Logging configuration
         fileLoggingEnabled: process.env.FILE_LOGGING_ENABLED !== 'false',
@@ -138,8 +138,8 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         config.apiv2Enabled = config.apiv2Enabled !== false;
         config.apiv2Key = config.apiv2Key || '';
         config.websocketEnabled = config.websocketEnabled !== false;
-        config.demoEnabled = config.demoEnabled !== false;
-        config.demoPassword = config.demoPassword || '';
+        config.infoPageEnabled = config.infoPageEnabled !== false;
+        config.infoPagePassword = config.infoPagePassword || '';
         config.fileLoggingEnabled = config.fileLoggingEnabled !== false;
         config.logRetentionDays = config.logRetentionDays || 3;
         config.spotMaxAge = config.spotMaxAge || 120;
@@ -354,7 +354,7 @@ const analytics = new Analytics({
     enabled: config.analyticsEnabled,
     dataFile: path.join(__dirname, 'data', 'analytics.json'),
     saveInterval: 5 * 60 * 1000, // 5 minutes
-    skipPaths: ['/health', '/demo', '/analytics']
+    skipPaths: ['/health', '/info', '/analytics']
 });
 
 // Apply analytics tracking middleware
@@ -421,9 +421,9 @@ function getApiInfo() {
     }
     endpoints.info = config.baseUrl + '/info';
     
-    // Only include demo endpoint if enabled
-    if (config.demoEnabled) {
-        endpoints.demo = config.baseUrl + '/demo';
+    // Only include info page endpoint if enabled
+    if (config.infoPageEnabled) {
+        endpoints.info_page = config.baseUrl + '/info';
     }
     
     return {
@@ -449,15 +449,15 @@ app.get(config.baseUrl + '/info', (req, res) => {
     res.json(getApiInfo());
 });
 
-// Serve static files (for demo page) - only if enabled
-if (config.demoEnabled) {
+// Serve static files (for info page) - only if enabled
+if (config.infoPageEnabled) {
     // HTTP Basic Authentication middleware (if password is set)
-    if (config.demoPassword) {
-        app.use(config.baseUrl + '/demo', (req, res, next) => {
+    if (config.infoPagePassword) {
+        app.use(config.baseUrl + '/info', (req, res, next) => {
             const authHeader = req.headers.authorization;
             
             if (!authHeader || !authHeader.startsWith('Basic ')) {
-                res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Demo Page"');
+                res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Info Page"');
                 return res.status(401).send('Authentication required');
             }
             
@@ -467,18 +467,18 @@ if (config.demoEnabled) {
             const [username, password] = credentials.split(':');
             
             // Verify password (username is ignored)
-            if (password !== config.demoPassword) {
-                res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Demo Page"');
+            if (password !== config.infoPagePassword) {
+                res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Info Page"');
                 return res.status(401).send('Invalid password');
             }
             
             next();
         });
-        console.log('Demo page password protection enabled');
+        console.log('Info page password protection enabled');
     }
     
-    // Add middleware to set no-cache and no-index headers for demo page
-    app.use(config.baseUrl + '/demo', (req, res, next) => {
+    // Add middleware to set no-cache and no-index headers for info page
+    app.use(config.baseUrl + '/info', (req, res, next) => {
         // Prevent caching
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, private');
         res.setHeader('Pragma', 'no-cache');
@@ -490,10 +490,10 @@ if (config.demoEnabled) {
         next();
     });
     
-    app.use(config.baseUrl + '/demo', express.static(path.join(__dirname, 'public')));
-    console.log('Demo page enabled at ' + config.baseUrl + '/demo');
+    app.use(config.baseUrl + '/info', express.static(path.join(__dirname, 'public', 'info')));
+    console.log('Info page enabled at ' + config.baseUrl + '/info');
 } else {
-    console.log('Demo page disabled');
+    console.log('Info page disabled');
 }
 
 // API Analytics endpoint - shows who is using the API
@@ -636,7 +636,10 @@ app.get(config.baseUrl + '/health', (req, res) => {
             } : false,
             analytics: config.analyticsEnabled,
             websocket: config.websocketEnabled,
-            demo: config.demoEnabled,
+            infoPage: {
+                enabled: config.infoPageEnabled,
+                passwordProtected: config.infoPagePassword && config.infoPagePassword.length > 0
+            },
             metrics: metrics.getStatus(),
             rateLimiter: rateLimiter.getStatus(),
             apiv1: {

@@ -22,7 +22,7 @@ class Analytics {
         this.MAX_ENDPOINTS_PER_CLIENT = 100;  // Maximum endpoints per client
         
         // Endpoints to skip tracking
-        this.skipPaths = options.skipPaths || ['/health', '/demo', '/customers', '/analytics'];
+        this.skipPaths = options.skipPaths || ['/health', '/info', '/customers', '/analytics'];
         
         if (this.enabled) {
             this.load();
