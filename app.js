@@ -115,9 +115,9 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         // WebSocket configuration
         websocketEnabled: process.env.WEBSOCKET_ENABLED !== 'false',
         
-        // Info page configuration
-        infoPageEnabled: process.env.INFO_PAGE_ENABLED !== 'false',
-        infoPagePassword: process.env.INFO_PAGE_PASSWORD || '',
+        // Live page configuration
+        livePageEnabled: process.env.LIVE_PAGE_ENABLED !== 'false',
+        livePagePassword: process.env.LIVE_PAGE_PASSWORD || '',
         
         // Logging configuration
         fileLoggingEnabled: process.env.FILE_LOGGING_ENABLED !== 'false',
@@ -138,8 +138,8 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         config.apiv2Enabled = config.apiv2Enabled !== false;
         config.apiv2Key = config.apiv2Key || '';
         config.websocketEnabled = config.websocketEnabled !== false;
-        config.infoPageEnabled = config.infoPageEnabled !== false;
-        config.infoPagePassword = config.infoPagePassword || '';
+        config.livePageEnabled = config.livePageEnabled !== false;
+        config.livePagePassword = config.livePagePassword || '';
         config.fileLoggingEnabled = config.fileLoggingEnabled !== false;
         config.logRetentionDays = config.logRetentionDays || 3;
         config.spotMaxAge = config.spotMaxAge || 120;
@@ -421,9 +421,9 @@ function getApiInfo() {
     }
     endpoints.info = config.baseUrl + '/info';
     
-    // Only include info page endpoint if enabled
-    if (config.infoPageEnabled) {
-        endpoints.info_page = config.baseUrl + '/info';
+    // Only include live page endpoint if enabled
+    if (config.livePageEnabled) {
+        endpoints.live = config.baseUrl + '/live';
     }
     
     return {
@@ -449,18 +449,18 @@ app.get(config.baseUrl + '/info', (req, res) => {
     res.json(getApiInfo());
 });
 
-// Serve info page - only if enabled
-if (config.infoPageEnabled) {
-    const infoPagePath = path.join(__dirname, 'views', 'info', 'index.html');
+// Serve live page - only if enabled
+if (config.livePageEnabled) {
+    const livePagePath = path.join(__dirname, 'views', 'live', 'index.html');
     
-    // Info page route with authentication
-    app.get(config.baseUrl + '/info', (req, res) => {
+    // Live page route with authentication
+    app.get(config.baseUrl + '/live', (req, res) => {
         // HTTP Basic Authentication (if password is set)
-        if (config.infoPagePassword) {
+        if (config.livePagePassword) {
             const authHeader = req.headers.authorization;
             
             if (!authHeader || !authHeader.startsWith('Basic ')) {
-                res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Info Page"');
+                res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Live Monitor"');
                 return res.status(401).send('Authentication required');
             }
             
@@ -470,8 +470,8 @@ if (config.infoPageEnabled) {
             const [username, password] = credentials.split(':');
             
             // Verify password (username is ignored)
-            if (password !== config.infoPagePassword) {
-                res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Info Page"');
+            if (password !== config.livePagePassword) {
+                res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Live Monitor"');
                 return res.status(401).send('Invalid password');
             }
         }
@@ -483,13 +483,13 @@ if (config.infoPageEnabled) {
         res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet');
         
         // Send the HTML file
-        res.sendFile(infoPagePath);
+        res.sendFile(livePagePath);
     });
     
-    console.log('Info page enabled at ' + config.baseUrl + '/info' + 
-                (config.infoPagePassword ? ' (password protected)' : ''));
+    console.log('Live page enabled at ' + config.baseUrl + '/live' + 
+                (config.livePagePassword ? ' (password protected)' : ''));
 } else {
-    console.log('Info page disabled');
+    console.log('Live page disabled');
 }
 
 // API Analytics endpoint - shows who is using the API
@@ -632,9 +632,9 @@ app.get(config.baseUrl + '/health', (req, res) => {
             } : false,
             analytics: config.analyticsEnabled,
             websocket: config.websocketEnabled,
-            infoPage: {
-                enabled: config.infoPageEnabled,
-                passwordProtected: config.infoPagePassword && config.infoPagePassword.length > 0
+            livePage: {
+                enabled: config.livePageEnabled,
+                passwordProtected: config.livePagePassword && config.livePagePassword.length > 0
             },
             metrics: metrics.getStatus(),
             rateLimiter: rateLimiter.getStatus(),
