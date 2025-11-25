@@ -318,14 +318,21 @@ RBN_FT8_ENABLED=false            # Enable FT8 feed (port 7001)
 - **Default**: `true` (enabled)
 - **Purpose**: Serves the built-in demo web interface at `/demo`
 - **Location**: `public/index.html`
-- **Features**: Real-time spot display, WebSocket updates, JSON inspection
+- **Features**: Real-time spot display, WebSocket updates, JSON inspection, logs viewer
+
+**Password Protection:**
+Optionally protect the demo page with HTTP Basic Authentication by setting `DEMO_PASSWORD`:
 
 **Example:**
 ```bash
 DEMO_ENABLED=true
+DEMO_PASSWORD=MySecretPassword123
 ```
 
-**Note**: When disabled, the `/demo` endpoint will not be available and won't appear in the API root endpoint list.
+**Note**: 
+- When disabled, the `/demo` endpoint will not be available
+- When `DEMO_PASSWORD` is empty, the demo page is publicly accessible
+- When `DEMO_PASSWORD` is set, browsers will prompt for authentication (username is ignored, only password is checked)
 
 ### Metrics Module
 - **Default**: Enabled automatically

@@ -117,6 +117,7 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         
         // Demo page configuration
         demoEnabled: process.env.DEMO_ENABLED !== 'false',
+        demoPassword: process.env.DEMO_PASSWORD || '',
         
         // Logging configuration
         fileLoggingEnabled: process.env.FILE_LOGGING_ENABLED !== 'false',
@@ -138,6 +139,7 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         config.apiv2Key = config.apiv2Key || '';
         config.websocketEnabled = config.websocketEnabled !== false;
         config.demoEnabled = config.demoEnabled !== false;
+        config.demoPassword = config.demoPassword || '';
         config.fileLoggingEnabled = config.fileLoggingEnabled !== false;
         config.logRetentionDays = config.logRetentionDays || 3;
         config.spotMaxAge = config.spotMaxAge || 120;
@@ -449,6 +451,32 @@ app.get(config.baseUrl + '/info', (req, res) => {
 
 // Serve static files (for demo page) - only if enabled
 if (config.demoEnabled) {
+    // HTTP Basic Authentication middleware (if password is set)
+    if (config.demoPassword) {
+        app.use(config.baseUrl + '/demo', (req, res, next) => {
+            const authHeader = req.headers.authorization;
+            
+            if (!authHeader || !authHeader.startsWith('Basic ')) {
+                res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Demo Page"');
+                return res.status(401).send('Authentication required');
+            }
+            
+            // Decode Basic Auth credentials
+            const base64Credentials = authHeader.split(' ')[1];
+            const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+            const [username, password] = credentials.split(':');
+            
+            // Verify password (username is ignored)
+            if (password !== config.demoPassword) {
+                res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Demo Page"');
+                return res.status(401).send('Invalid password');
+            }
+            
+            next();
+        });
+        console.log('Demo page password protection enabled');
+    }
+    
     // Add middleware to set no-cache and no-index headers for demo page
     app.use(config.baseUrl + '/demo', (req, res, next) => {
         // Prevent caching
