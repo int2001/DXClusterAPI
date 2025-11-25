@@ -1297,8 +1297,10 @@ async function handlespot(spot, spot_source = "cluster") {
 			if (spots.length >= config.maxcache) {
 				const batchSize = Math.max(Math.floor(config.maxcache * 0.1), 10); // Remove at least 10 spots
 				
-				// Remove oldest batch from beginning (no sorting needed - array is already sorted!)
-				const removedSpots = spots.splice(0, batchSize);
+				// Atomic removal: slice creates new array without oldest spots
+				// This prevents race conditions during API reads
+				const removedSpots = spots.slice(0, batchSize);
+				spots = spots.slice(batchSize);
 				
 				// Clean up indexes
 				removedSpots.forEach(spot => removeFromIndexes(spot));
@@ -1325,27 +1327,28 @@ function cleanupExpiredRBN() {
 	
 	const now = Date.now();
 	const rbnMaxAge = config.rbnSpotTimeout * 60 * 1000; // Convert minutes to milliseconds
-	const toRemove = [];
+	let removedCount = 0;
 	
-	// Find all expired RBN spots
-	for (let i = 0; i < spots.length; i++) {
-		const spot = spots[i];
+	// Filter approach: create new array without expired RBN spots
+	// This is safer for concurrent reads than splice operations
+	const filteredSpots = spots.filter(spot => {
 		if (spot.source === 'rbn') {
 			const age = now - Date.parse(spot.when);
 			if (age > rbnMaxAge) {
-				toRemove.push(i);
+				removeFromIndexes(spot);
+				removedCount++;
+				return false; // Remove this spot
 			}
 		}
+		return true; // Keep this spot
+	});
+	
+	// Atomic replacement if any spots were removed
+	if (removedCount > 0) {
+		spots = filteredSpots;
 	}
 	
-	// Remove in reverse order to preserve indexes during splice
-	for (let i = toRemove.length - 1; i >= 0; i--) {
-		const index = toRemove[i];
-		const spot = spots.splice(index, 1)[0];
-		removeFromIndexes(spot);
-	}
-	
-	return toRemove.length;
+	return removedCount;
 }
 
 // -----------------------------------
@@ -1513,8 +1516,9 @@ function cleanupOldSpots() {
     
     const removedCount = initialCount - freshSpots.length;
     if (removedCount > 0) {
-        spots.length = 0;
-        spots.push(...freshSpots);
+        // Atomic replacement: assign new array reference instead of mutating
+        // This prevents race conditions during API reads
+        spots = freshSpots;
         console.log(`Cleanup: removed ${removedCount} old spots (older than ${config.spotMaxAge} minutes)`);
     }
 }
