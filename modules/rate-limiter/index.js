@@ -28,7 +28,7 @@ class RateLimiter {
         this.trustProxy = config.trustProxy !== false; // Default to true
 
         if (!this.enabled) {
-            console.log('Rate limiter module disabled');
+            console.log('[RateLimiter] Module disabled');
             return;
         }
 
@@ -62,7 +62,7 @@ class RateLimiter {
             skip: (req) => this.shouldSkip(req)
         });
 
-        console.log(`Rate limiter initialized - General: ${config.generalMax || 120}/min, Data: ${config.dataMax || 60}/min`);
+        console.log(`[RateLimiter] Initialized - General: ${config.generalMax || 120}/min, Data: ${config.dataMax || 60}/min`);
     }
 
     /**

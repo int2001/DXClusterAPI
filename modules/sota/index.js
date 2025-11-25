@@ -136,7 +136,7 @@ module.exports = class SOTASpots extends events.EventEmitter {
           }
         }
       } catch (err) {
-        console.error("SOTA fetch failed:", err && err.stack ? err.stack : err);
+        console.error('[SOTA] Fetch failed:', err && err.stack ? err.stack : err);
       }
     }
   }

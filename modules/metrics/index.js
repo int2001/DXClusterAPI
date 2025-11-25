@@ -27,7 +27,7 @@ class Metrics {
         this.getWebSocketClients = config.getWebSocketClients;
 
         if (!this.enabled) {
-            console.log('Metrics module disabled');
+            console.log('[Metrics] Module disabled');
             return;
         }
 
@@ -40,7 +40,7 @@ class Metrics {
         // Initialize custom metrics
         this.initializeMetrics();
 
-        console.log('Metrics module initialized');
+        console.log('[Metrics] Module initialized');
     }
 
     /**

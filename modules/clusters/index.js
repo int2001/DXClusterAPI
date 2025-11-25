@@ -30,16 +30,16 @@ class Clusters extends EventEmitter {
      */
     init() {
         if (!this.enabled) {
-            console.log('Cluster module is disabled');
+            console.log('[Clusters] Module disabled');
             return;
         }
 
         if (!this.clusters || this.clusters.length === 0) {
-            console.log('No clusters configured');
+            console.log('[Clusters] No clusters configured');
             return;
         }
 
-        console.log(`Initializing ${this.clusters.length} DXCluster(s)`);
+        console.log(`[Clusters] Initializing ${this.clusters.length} DXCluster(s)`);
         this.reconnect();
     }
 
@@ -126,13 +126,13 @@ class Clusters extends EventEmitter {
      * Graceful shutdown of all connections
      */
     shutdown() {
-        console.log('Shutting down cluster connections...');
+        console.log('[Clusters] Shutting down cluster connections...');
         this.connections.forEach(({ conn }) => {
             try {
                 conn.removeAllListeners();
                 // If DXCluster module has a disconnect/close method, call it here
             } catch (e) {
-                console.error('Error closing cluster connection:', e);
+                console.error('[Clusters] Error closing cluster connection:', e);
             }
         });
         this.connections = [];

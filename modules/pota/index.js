@@ -130,7 +130,7 @@ module.exports = class POTASpots extends events.EventEmitter {
 
 		  } catch (error) {
 			  //log error to console
-			  console.error('Fetch failed:', error);
+			  console.error('[POTA] Fetch failed:', error);
 		  }
 	  }
   }

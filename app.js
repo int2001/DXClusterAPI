@@ -265,10 +265,10 @@ if (config.fileLoggingEnabled) {
     console.log('[Core] ════════════════════════════════════════════════════════════');
     console.log('[Core] 🚀 DXClusterAPI Starting');
     console.log('[Core] ════════════════════════════════════════════════════════════');
-    console.log('[Core] 📋 PID:', process.pid);
-    console.log('[Core] 🟢 Node.js:', process.versions.node);
-    console.log('[Core] ⚙️  Mode:', config.mode);
-    console.log('[Core] 📝 Log file:', LOG_FILE);
+    console.log('[Core]     PID:', process.pid);
+    console.log('[Core]     Node.js:', process.versions.node);
+    console.log('[Core]     Mode:', config.mode);
+    console.log('[Core]     Log file:', LOG_FILE);
     console.log('[Core] ════════════════════════════════════════════════════════════');
     console.log('');
 } else {
@@ -276,9 +276,9 @@ if (config.fileLoggingEnabled) {
     console.log('[Core] ════════════════════════════════════════════════════════════');
     console.log('[Core] 🚀 DXClusterAPI Starting');
     console.log('[Core] ════════════════════════════════════════════════════════════');
-    console.log('[Core] 📋 PID:', process.pid);
-    console.log('[Core] 🟢 Node.js:', process.versions.node);
-    console.log('[Core] ⚙️  Mode:', config.mode);
+    console.log('[Core]     PID:', process.pid);
+    console.log('[Core]     Node.js:', process.versions.node);
+    console.log('[Core]     Mode:', config.mode);
     console.log('[Core] ════════════════════════════════════════════════════════════');
     console.log('');
 }
@@ -330,7 +330,11 @@ app.use((req, res, next) => {
 morgan.token('skip-logging', (req, res) => {
     return (req.url.startsWith(config.baseUrl + '/spots') || 
             req.url.startsWith(config.baseUrl + '/health') ||
-            req.url.startsWith(config.baseUrl + '/logs')) ? 'skip' : null;
+            req.url.startsWith(config.baseUrl + '/logs') ||
+            req.url.startsWith(config.baseUrl + '/stats') ||
+            req.url.startsWith(config.baseUrl + '/api/v2/bands') ||
+            req.url.startsWith(config.baseUrl + '/analytics') ||
+            req.url.startsWith(config.baseUrl + '/live')) ? 'skip' : null;
 });
 
 if (morganStream) {
@@ -338,13 +342,21 @@ if (morganStream) {
         stream: morganStream,
         skip: (req, res) => req.url.startsWith(config.baseUrl + '/spots') || 
                            req.url.startsWith(config.baseUrl + '/health') ||
-                           req.url.startsWith(config.baseUrl + '/logs')
+                           req.url.startsWith(config.baseUrl + '/logs') ||
+                           req.url.startsWith(config.baseUrl + '/stats') ||
+                           req.url.startsWith(config.baseUrl + '/api/v2/bands') ||
+                           req.url.startsWith(config.baseUrl + '/analytics') ||
+                           req.url.startsWith(config.baseUrl + '/live')
     }));
 }
 app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" :response-time ms', {
     skip: (req, res) => req.url.startsWith(config.baseUrl + '/spots') || 
                        req.url.startsWith(config.baseUrl + '/health') ||
-                       req.url.startsWith(config.baseUrl + '/logs')
+                       req.url.startsWith(config.baseUrl + '/logs') ||
+                       req.url.startsWith(config.baseUrl + '/stats') ||
+                       req.url.startsWith(config.baseUrl + '/api/v2/bands') ||
+                       req.url.startsWith(config.baseUrl + '/analytics') ||
+                       req.url.startsWith(config.baseUrl + '/live')
 }));
 app.use(cors({ origin: '*' }));
 
@@ -353,6 +365,10 @@ app.use(cors({ origin: '*' }));
 // ================================================================
 // Initialize clusterManager FIRST, before other modules that depend on it
 clusterManager = new Clusters(config.clusterEnabled, clusters);
+
+if (config.clusterEnabled && clusters.length > 0) {
+    console.log(`[Clusters] Initializing ${clusters.length} DXCluster(s)`);
+}
 
 // ================================================================
 // Rate Limiting Module
@@ -366,6 +382,8 @@ const rateLimiter = new RateLimiter({
 // Apply general rate limiting to all routes
 app.use(rateLimiter.middleware(config.baseUrl));
 
+console.log('[RateLimiter] Rate limiter initialized - General: 120/min, Data: 60/min');
+
 // ================================================================
 // Metrics Module
 // ================================================================
@@ -378,6 +396,8 @@ const metrics = new Metrics({
 
 // Apply metrics tracking middleware
 app.use(metrics.middleware());
+
+console.log('[Metrics] Metrics module initialized');
 
 // ================================================================
 // API Analytics Module
@@ -863,10 +883,92 @@ async function startHttpServer() {
     }
 }
 
+// ================================================================
+// Persistence Module - Load Cache Before Starting Server
+// ================================================================
+let persistenceController = null;
+
+async function initializePersistence() {
+    if (config.persistenceEnabled) {
+        console.log('[Persistence] Loading spot cache from disk...');
+        
+        try {
+            const loadResult = await Persistence.loadCache(config.persistencePath, config.spotMaxAge);
+            
+            if (loadResult.success && loadResult.spots.length > 0) {
+                // Restore spots array
+                spots = loadResult.spots;
+                
+                // Rebuild all indexes from loaded spots
+                console.log('[Persistence] Rebuilding indexes...');
+                
+                for (const spot of spots) {
+                    // Rebuild callsign index (spotKey)
+                    const spotKey = `${spot.spotted}_${spot.frequency}_${spot.source}`;
+                    spotKeyIndex.set(spotKey, spot);
+                    
+                    // Rebuild band index
+                    const band = spot.band;
+                    if (!bandIndex.has(band)) {
+                        bandIndex.set(band, new Set());
+                    }
+                    bandIndex.get(band).add(spot);
+                    
+                    // Rebuild frequency index
+                    const normFreq = normalizeFrequency(spot.frequency);
+                    frequencyIndex.set(normFreq, spot);
+                    
+                    // Rebuild source index
+                    const source = spot.source;
+                    if (!sourceIndex.has(source)) {
+                        sourceIndex.set(source, new Set());
+                    }
+                    sourceIndex.get(source).add(spot);
+                    
+                    // Rebuild statistics
+                    const modeType = spot.mode_type || 'unknown';
+                    modeTypeStats[modeType] = (modeTypeStats[modeType] || 0) + 1;
+                    
+                    if (spot.dxcc_spotted?.continent) {
+                        continentStats[spot.dxcc_spotted.continent] = (continentStats[spot.dxcc_spotted.continent] || 0) + 1;
+                    }
+                    
+                    if (spot.dxcc_spotter?.continent) {
+                        continentDeStats[spot.dxcc_spotter.continent] = (continentDeStats[spot.dxcc_spotter.continent] || 0) + 1;
+                    }
+                    
+                    if (spot.source === 'rbn') {
+                        rbnSpotCount++;
+                    }
+                }
+                
+                console.log(`[Persistence] ✅ Successfully restored ${loadResult.loaded} spots (cache age: ${Math.round(loadResult.cacheAge / 1000)}s)`);
+            } else {
+                console.log('[Persistence] No cached spots to restore (starting fresh)');
+            }
+            
+            // Start auto-save regardless of load success
+            persistenceController = Persistence.startAutoSave(
+                () => spots,
+                config.persistenceInterval,
+                config.persistencePath
+            );
+            
+        } catch (error) {
+            console.error('[Persistence] Initialization error:', error.message);
+        }
+    } else {
+        console.log('[Persistence] Disabled');
+    }
+}
+
 // Initialize server (works for all modes)
 // In Passenger mode, PORT is provided by Passenger
 // In Native/Docker mode, PORT comes from .env or defaults to 3000
-startHttpServer();
+(async () => {
+    await initializePersistence();
+    startHttpServer();
+})();
 
 // -----------------------------------
 // Graceful Shutdown Handler
@@ -1919,81 +2021,6 @@ async function performDxccLookup(call) {
         // Return empty object on error to prevent undefined access
         return {};
     }
-}
-
-// ================================================================
-// Persistence Module - Load Cache on Startup
-// ================================================================
-let persistenceController = null;
-
-if (config.persistenceEnabled) {
-    console.log('[Persistence] Loading spot cache from disk...');
-    
-    (async () => {
-        const loadResult = await Persistence.loadCache(config.persistencePath, config.spotMaxAge);
-        
-        if (loadResult.success && loadResult.spots.length > 0) {
-            // Restore spots array
-            spots = loadResult.spots;
-            
-            // Rebuild all indexes from loaded spots
-            console.log('[Persistence] Rebuilding indexes...');
-            
-            for (const spot of spots) {
-                // Rebuild callsign index (spotKey)
-                const spotKey = `${spot.spotted}_${spot.frequency}_${spot.source}`;
-                spotKeyIndex.set(spotKey, spot);
-                
-                // Rebuild band index
-                const band = spot.band;
-                if (!bandIndex.has(band)) {
-                    bandIndex.set(band, new Set());
-                }
-                bandIndex.get(band).add(spot);
-                
-                // Rebuild frequency index
-                const normFreq = normalizeFrequency(spot.frequency);
-                frequencyIndex.set(normFreq, spot);
-                
-                // Rebuild source index
-                const source = spot.source;
-                if (!sourceIndex.has(source)) {
-                    sourceIndex.set(source, new Set());
-                }
-                sourceIndex.get(source).add(spot);
-                
-                // Rebuild statistics
-                const modeType = spot.mode_type || 'unknown';
-                modeTypeStats[modeType] = (modeTypeStats[modeType] || 0) + 1;
-                
-                if (spot.dxcc_spotted?.continent) {
-                    continentStats[spot.dxcc_spotted.continent] = (continentStats[spot.dxcc_spotted.continent] || 0) + 1;
-                }
-                
-                if (spot.dxcc_spotter?.continent) {
-                    continentDeStats[spot.dxcc_spotter.continent] = (continentDeStats[spot.dxcc_spotter.continent] || 0) + 1;
-                }
-                
-                if (spot.source === 'rbn') {
-                    rbnSpotCount++;
-                }
-            }
-            
-            console.log(`[Persistence] Successfully restored ${loadResult.loaded} spots (cache age: ${Math.round(loadResult.cacheAge / 1000)}s)`);
-        }
-        
-        // Start auto-save regardless of load success
-        persistenceController = Persistence.startAutoSave(
-            () => spots,
-            config.persistenceInterval,
-            config.persistencePath
-        );
-        
-    })().catch(error => {
-        console.error('[Persistence] Initialization error:', error.message);
-    });
-} else {
-    console.log('[Persistence] Disabled');
 }
 
 // ================================================================

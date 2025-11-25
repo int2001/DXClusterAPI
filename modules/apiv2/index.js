@@ -343,7 +343,7 @@ class APIv2 {
                     }
                 }));
             } catch (error) {
-                console.error('API v2 /spots error:', error);
+                console.error('[APIv2] /spots error:', error);
                 res.status(500).json(this.formatResponse({
                     success: false,
                     error: 'Internal server error',
@@ -377,7 +377,7 @@ class APIv2 {
                     }
                 }));
             } catch (error) {
-                console.error('API v2 /spots/:callsign error:', error);
+                console.error('[APIv2] /spots/:callsign error:', error);
                 res.status(500).json(this.formatResponse({
                     success: false,
                     error: 'Internal server error',
@@ -417,7 +417,7 @@ class APIv2 {
                     }));
                 }
             } catch (error) {
-                console.error('API v2 /spot/:qrg error:', error);
+                console.error('[APIv2] /spot/:qrg error:', error);
                 res.status(500).json(this.formatResponse({
                     success: false,
                     error: 'Internal server error',
@@ -452,7 +452,7 @@ class APIv2 {
                     }
                 }));
             } catch (error) {
-                console.error('API v2 /bands error:', error);
+                console.error('[APIv2] /bands error:', error);
                 res.status(500).json(this.formatResponse({
                     success: false,
                     error: 'Internal server error',
@@ -487,7 +487,7 @@ class APIv2 {
                     }
                 }));
             } catch (error) {
-                console.error('API v2 /sources error:', error);
+                console.error('[APIv2] /sources error:', error);
                 res.status(500).json(this.formatResponse({
                     success: false,
                     error: 'Internal server error',
@@ -546,7 +546,7 @@ class APIv2 {
                     }
                 }));
             } catch (error) {
-                console.error('API v2 /heatmap error:', error);
+                console.error('[APIv2] /heatmap error:', error);
                 res.status(500).json(this.formatResponse({
                     success: false,
                     error: 'Internal server error',
