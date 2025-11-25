@@ -449,11 +449,14 @@ app.get(config.baseUrl + '/info', (req, res) => {
     res.json(getApiInfo());
 });
 
-// Serve static files (for info page) - only if enabled
+// Serve info page - only if enabled
 if (config.infoPageEnabled) {
-    // HTTP Basic Authentication middleware (if password is set)
-    if (config.infoPagePassword) {
-        app.use(config.baseUrl + '/info', (req, res, next) => {
+    const infoPagePath = path.join(__dirname, 'public', 'info', 'index.html');
+    
+    // Info page route with authentication
+    app.get(config.baseUrl + '/info', (req, res) => {
+        // HTTP Basic Authentication (if password is set)
+        if (config.infoPagePassword) {
             const authHeader = req.headers.authorization;
             
             if (!authHeader || !authHeader.startsWith('Basic ')) {
@@ -471,27 +474,20 @@ if (config.infoPageEnabled) {
                 res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Info Page"');
                 return res.status(401).send('Invalid password');
             }
-            
-            next();
-        });
-        console.log('Info page password protection enabled');
-    }
-    
-    // Add middleware to set no-cache and no-index headers for info page
-    app.use(config.baseUrl + '/info', (req, res, next) => {
-        // Prevent caching
+        }
+        
+        // Set no-cache and no-index headers
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, private');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
-        
-        // Prevent search engine indexing
         res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet');
         
-        next();
+        // Send the HTML file
+        res.sendFile(infoPagePath);
     });
     
-    app.use(config.baseUrl + '/info', express.static(path.join(__dirname, 'public', 'info')));
-    console.log('Info page enabled at ' + config.baseUrl + '/info');
+    console.log('Info page enabled at ' + config.baseUrl + '/info' + 
+                (config.infoPagePassword ? ' (password protected)' : ''));
 } else {
     console.log('Info page disabled');
 }
