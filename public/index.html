@@ -918,6 +918,9 @@
                 </div>
             </div>
             <div class="server-info">
+                <button class="analytics-icon" onclick="showLogs()" title="View Application Logs">
+                    📋
+                </button>
                 <button class="analytics-icon" onclick="showSpotStats()" title="View Spot Statistics">
                     📊
                 </button>
@@ -1040,6 +1043,25 @@
             </div>
             <div class="modal-footer">
                 <button class="modal-btn close" onclick="closeMemoryModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs Modal -->
+    <div id="logsModal" class="modal">
+        <div class="modal-content" style="max-width: 90%; width: 1200px;">
+            <div class="modal-header">
+                <h2>📋 Application Logs</h2>
+                <button class="modal-close" onclick="closeLogsModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh;">
+                <div id="logsContent" style="font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 5px; max-height: 65vh; overflow-y: auto;">
+                    <p style="text-align: center; color: #888;">Loading logs...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span id="logsInfo" style="font-size: 12px; color: #666; margin-right: auto;"></span>
+                <button class="modal-btn close" onclick="closeLogsModal()">Close</button>
             </div>
         </div>
     </div>
@@ -1860,6 +1882,76 @@
                 console.error('Memory details error:', error);
                 content.innerHTML = '<p style="text-align: center; color: #ff4444;">Failed to load memory details</p>';
             }
+        }
+
+        async function showLogs() {
+            const modal = document.getElementById('logsModal');
+            const content = document.getElementById('logsContent');
+            const info = document.getElementById('logsInfo');
+            
+            modal.style.display = 'block';
+            content.innerHTML = '<p style="text-align: center; color: #888;">Loading logs...</p>';
+            info.textContent = '';
+            
+            try {
+                const response = await fetch('/logs');
+                if (!response.ok) {
+                    if (response.status === 503) {
+                        throw new Error('File logging is not enabled on the server');
+                    }
+                    throw new Error('Failed to fetch logs');
+                }
+                
+                const data = await response.json();
+                console.log('Logs data:', data);
+                
+                if (!data.logs || data.logs.length === 0) {
+                    content.innerHTML = '<p style="text-align: center; color: #888;">No log entries found</p>';
+                    info.textContent = data.message || 'No logs available';
+                    return;
+                }
+                
+                // Format logs with syntax highlighting
+                let html = '';
+                data.logs.forEach(line => {
+                    let coloredLine = line;
+                    
+                    // Color code by log level
+                    if (line.includes('[ERROR]')) {
+                        coloredLine = `<span style="color: #f48771;">${escapeHtml(line)}</span>`;
+                    } else if (line.includes('[WARN]')) {
+                        coloredLine = `<span style="color: #dcdcaa;">${escapeHtml(line)}</span>`;
+                    } else if (line.includes('[INFO]')) {
+                        coloredLine = `<span style="color: #4ec9b0;">${escapeHtml(line)}</span>`;
+                    } else {
+                        coloredLine = `<span style="color: #d4d4d4;">${escapeHtml(line)}</span>`;
+                    }
+                    
+                    html += coloredLine + '\n';
+                });
+                
+                content.innerHTML = html;
+                
+                // Auto-scroll to bottom
+                content.scrollTop = content.scrollHeight;
+                
+                // Update info
+                info.textContent = `Showing ${data.showing} of ${data.total} lines from ${data.file}`;
+                
+            } catch (error) {
+                console.error('Logs error:', error);
+                content.innerHTML = `<p style="text-align: center; color: #f48771;">${escapeHtml(error.message)}</p>`;
+            }
+        }
+
+        function closeLogsModal() {
+            document.getElementById('logsModal').style.display = 'none';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         async function showAnalytics() {

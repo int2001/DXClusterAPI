@@ -637,6 +637,47 @@ app.get(config.baseUrl + '/metrics', async (req, res) => {
     }
 });
 
+/**
+ * GET /logs - Retrieve recent log entries (last 1000 lines)
+ * Only available when file logging is enabled
+ */
+app.get(config.baseUrl + '/logs', (req, res) => {
+    if (!config.fileLoggingEnabled) {
+        return res.status(503).json({ error: 'File logging is not enabled' });
+    }
+    
+    try {
+        const today = new Date();
+        const fmtDate = (d) => {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${y}${m}${dd}`;
+        };
+        
+        const logFile = path.join(LOG_DIR, `app-${fmtDate(today)}.log`);
+        
+        if (!fs.existsSync(logFile)) {
+            return res.json({ logs: [], message: 'No log file found for today' });
+        }
+        
+        // Read log file and get last 1000 lines
+        const logContent = fs.readFileSync(logFile, 'utf8');
+        const lines = logContent.split('\n').filter(line => line.trim());
+        const recentLines = lines.slice(-1000);
+        
+        res.json({
+            logs: recentLines,
+            total: lines.length,
+            showing: recentLines.length,
+            file: path.basename(logFile)
+        });
+    } catch (error) {
+        console.error('Error reading log file:', error);
+        res.status(500).json({ error: 'Failed to read log file' });
+    }
+});
+
 // -----------------------------------
 // Server Start
 // -----------------------------------
