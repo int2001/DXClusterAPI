@@ -662,6 +662,7 @@ app.get(config.baseUrl + '/health', (req, res) => {
         version: APP_VERSION,
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
+        uptimeFormatted: formatUptime(process.uptime()),
         mode: config.mode,
         memory: {
             heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
@@ -1777,9 +1778,16 @@ function logStatistics() {
         .map(([name, count]) => `${name}=${count}`)
         .join(', ');
     
-    // Get total requests from metrics
-    const metricsStatus = metrics.getStatus();
-    const totalRequests = metricsStatus.totalRequests || 0;
+    // Get total requests from analytics module (if enabled)
+    let totalRequests = 'N/A';
+    if (config.analyticsEnabled && analytics) {
+        try {
+            const analyticsSummary = analytics.getSummary();
+            totalRequests = analyticsSummary.totalRequests || 0;
+        } catch (e) {
+            // Analytics module might not be available
+        }
+    }
     
     console.log(`[Core] ═══════════════════════════════════════════════════════════════════════════`);
     console.log(`[Core] Statistics: Uptime=${uptimeHours}h ${uptimeMinutes}m | Requests=${totalRequests} | Total Spots=${spots.length}`);
@@ -1790,6 +1798,25 @@ function logStatistics() {
 // -----------------------------------
 // Helper Functions
 // -----------------------------------
+
+/**
+ * Formats uptime in seconds to human-readable format
+ * @param {number} seconds - Uptime in seconds
+ * @returns {string} Formatted uptime (e.g., "2d 14h 35m" or "3h 25m" or "45m")
+ */
+function formatUptime(seconds) {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    if (days > 0) {
+        return `${days}d ${hours}h ${minutes}m`;
+    } else if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    } else {
+        return `${minutes}m`;
+    }
+}
 
 let consecutiveErrorCount = 0;
 const dxccServer = config.dxcc_lookup_wavelog_url;  // The WaveLog server

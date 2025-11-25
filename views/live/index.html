@@ -916,6 +916,10 @@
                     <span class="stat-label">Spots/Min</span>
                     <span class="stat-value" id="spotsPerMin">0</span>
                 </div>
+                <div class="stat-item">
+                    <span class="stat-label">Uptime</span>
+                    <span class="stat-value" id="uptime">--</span>
+                </div>
             </div>
             <div class="server-info">
                 <button class="analytics-icon" onclick="showLogs()" title="View Application Logs">
@@ -2201,6 +2205,21 @@
         }
         updateTotalSpots();  // Initial update
         setInterval(updateTotalSpots, 5000);  // Update every 5 seconds
+
+        // Update uptime from health endpoint every minute
+        async function updateUptime() {
+            try {
+                const response = await fetch('/health');
+                if (response.ok) {
+                    const health = await response.json();
+                    document.getElementById('uptime').textContent = health.uptimeFormatted || '--';
+                }
+            } catch (error) {
+                // Silently fail - don't update on error
+            }
+        }
+        updateUptime();  // Initial update
+        setInterval(updateUptime, 60000);  // Update every minute
 
         // Update spots per minute every 5 seconds
         setInterval(() => {
