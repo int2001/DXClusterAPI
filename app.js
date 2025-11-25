@@ -261,12 +261,19 @@ if (config.fileLoggingEnabled) {
     console.warn = (...args) => { const line = stamp('WARN', args); try { logStream.write(line); } catch (_) {} _warn(...args); };
     console.error = (...args) => { const line = stamp('ERROR', args); try { logStream.write(line); } catch (_) {} _err(...args); };
 
-    // Build enabled modules list
+    // Build enabled modules list (all modules in one list)
     const enabledModules = [];
+    // Core API endpoints
+    if (config.apiv1Enabled !== false) enabledModules.push('API v1');
+    if (config.apiv2Enabled !== false) enabledModules.push('API v2');
+    if (config.livePageEnabled) enabledModules.push('Live Page');
+    if (config.websocketEnabled) enabledModules.push('WebSocket');
+    // Data source modules
     if (config.clusterEnabled) enabledModules.push('DX Clusters');
     if (config.includepotaspots) enabledModules.push('POTA');
     if (config.includesotaspots) enabledModules.push('SOTA');
     if (config.rbnEnabled) enabledModules.push('RBN');
+    // Support modules
     if (config.persistenceEnabled) enabledModules.push('Persistence');
     if (config.rateLimiterEnabled) enabledModules.push('Rate Limiter');
     if (config.metricsEnabled) enabledModules.push('Metrics');
@@ -286,12 +293,19 @@ if (config.fileLoggingEnabled) {
     console.log('[Core] ════════════════════════════════════════════════════════════');
     console.log('');
 } else {
-    // Build enabled modules list
+    // Build enabled modules list (all modules in one list)
     const enabledModules = [];
+    // Core API endpoints
+    if (config.apiv1Enabled !== false) enabledModules.push('API v1');
+    if (config.apiv2Enabled !== false) enabledModules.push('API v2');
+    if (config.livePageEnabled) enabledModules.push('Live Page');
+    if (config.websocketEnabled) enabledModules.push('WebSocket');
+    // Data source modules
     if (config.clusterEnabled) enabledModules.push('DX Clusters');
     if (config.includepotaspots) enabledModules.push('POTA');
     if (config.includesotaspots) enabledModules.push('SOTA');
     if (config.rbnEnabled) enabledModules.push('RBN');
+    // Support modules
     if (config.persistenceEnabled) enabledModules.push('Persistence');
     if (config.rateLimiterEnabled) enabledModules.push('Rate Limiter');
     if (config.metricsEnabled) enabledModules.push('Metrics');
@@ -912,7 +926,8 @@ async function initializePersistence() {
         console.log('[Persistence] Loading spot cache from disk...');
         
         try {
-            const loadResult = await Persistence.loadCache(config.persistencePath, config.spotMaxAge, DXCC_CACHE_TTL);
+            const DXCC_TTL = 7 * 24 * 60 * 60 * 1000;  // 7 days
+            const loadResult = await Persistence.loadCache(config.persistencePath, config.spotMaxAge, DXCC_TTL);
             
             if (loadResult.success && loadResult.spots.length > 0) {
                 // Restore spots array
