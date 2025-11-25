@@ -570,7 +570,7 @@ class APIv2 {
                         {
                             path: '/api/v2/spots',
                             method: 'GET',
-                            description: 'Get filtered spots with pagination',
+                            description: 'Get filtered spots',
                             parameters: [
                                 'band', 'continent', 'source', 'maxAge', 'minFreq', 'maxFreq',
                                 'contest', 'pota', 'sota', 'iota', 'wwff', 'mode', 'submode', 'limit', 'offset'

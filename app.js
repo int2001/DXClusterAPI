@@ -260,70 +260,42 @@ if (config.fileLoggingEnabled) {
     console.log = (...args) => { const line = stamp('INFO', args); try { logStream.write(line); } catch (_) {} _log(...args); };
     console.warn = (...args) => { const line = stamp('WARN', args); try { logStream.write(line); } catch (_) {} _warn(...args); };
     console.error = (...args) => { const line = stamp('ERROR', args); try { logStream.write(line); } catch (_) {} _err(...args); };
-
-    // Build enabled modules list (all modules in one list)
-    const enabledModules = [];
-    // Core API endpoints
-    if (config.apiv1Enabled !== false) enabledModules.push('API v1');
-    if (config.apiv2Enabled !== false) enabledModules.push('API v2');
-    if (config.livePageEnabled) enabledModules.push('Live Page');
-    if (config.websocketEnabled) enabledModules.push('WebSocket');
-    // Data source modules
-    if (config.clusterEnabled) enabledModules.push('DX Clusters');
-    if (config.includepotaspots) enabledModules.push('POTA');
-    if (config.includesotaspots) enabledModules.push('SOTA');
-    if (config.rbnEnabled) enabledModules.push('RBN');
-    // Support modules
-    if (config.persistenceEnabled) enabledModules.push('Persistence');
-    if (config.rateLimiterEnabled) enabledModules.push('Rate Limiter');
-    enabledModules.push('Metrics');  // Always enabled
-    if (config.analyticsEnabled) enabledModules.push('Analytics');
-    if (config.modeClassifierEnabled) enabledModules.push('Mode Classifier');
-    const moduleList = enabledModules.length > 0 ? enabledModules.join(', ') : 'None';
-
-    console.log('');
-    console.log('[Core] ════════════════════════════════════════════════════════════');
-    console.log('[Core] 🚀 DXClusterAPI Starting');
-    console.log('[Core] ════════════════════════════════════════════════════════════');
-    console.log('[Core]     PID:', process.pid);
-    console.log('[Core]     Node.js:', process.versions.node);
-    console.log('[Core]     Mode:', config.mode);
-    console.log('[Core]     Modules:', moduleList);
-    console.log('[Core]     Log file:', LOG_FILE);
-    console.log('[Core] ════════════════════════════════════════════════════════════');
-    console.log('');
-} else {
-    // Build enabled modules list (all modules in one list)
-    const enabledModules = [];
-    // Core API endpoints
-    if (config.apiv1Enabled !== false) enabledModules.push('API v1');
-    if (config.apiv2Enabled !== false) enabledModules.push('API v2');
-    if (config.livePageEnabled) enabledModules.push('Live Page');
-    if (config.websocketEnabled) enabledModules.push('WebSocket');
-    // Data source modules
-    if (config.clusterEnabled) enabledModules.push('DX Clusters');
-    if (config.includepotaspots) enabledModules.push('POTA');
-    if (config.includesotaspots) enabledModules.push('SOTA');
-    if (config.rbnEnabled) enabledModules.push('RBN');
-    // Support modules
-    if (config.persistenceEnabled) enabledModules.push('Persistence');
-    if (config.rateLimiterEnabled) enabledModules.push('Rate Limiter');
-    enabledModules.push('Metrics');  // Always enabled
-    if (config.analyticsEnabled) enabledModules.push('Analytics');
-    if (config.modeClassifierEnabled) enabledModules.push('Mode Classifier');
-    const moduleList = enabledModules.length > 0 ? enabledModules.join(', ') : 'None';
-
-    console.log('');
-    console.log('[Core] ════════════════════════════════════════════════════════════');
-    console.log('[Core] 🚀 DXClusterAPI Starting');
-    console.log('[Core] ════════════════════════════════════════════════════════════');
-    console.log('[Core]     PID:', process.pid);
-    console.log('[Core]     Node.js:', process.versions.node);
-    console.log('[Core]     Mode:', config.mode);
-    console.log('[Core]     Modules:', moduleList);
-    console.log('[Core] ════════════════════════════════════════════════════════════');
-    console.log('');
 }
+
+// Build enabled modules list (all modules in one list)
+const enabledModules = [];
+// Core API endpoints
+if (config.apiv1Enabled !== false) enabledModules.push('API v1');
+if (config.apiv2Enabled !== false) enabledModules.push('API v2');
+if (config.livePageEnabled) enabledModules.push('Live Page');
+if (config.websocketEnabled) enabledModules.push('WebSocket');
+// Data source modules
+if (config.clusterEnabled) enabledModules.push('DX Clusters');
+if (config.includepotaspots) enabledModules.push('POTA');
+if (config.includesotaspots) enabledModules.push('SOTA');
+if (config.rbnEnabled) enabledModules.push('RBN');
+// Support modules
+if (config.persistenceEnabled) enabledModules.push('Persistence');
+if (config.rateLimiterEnabled) enabledModules.push('Rate Limiter');
+enabledModules.push('Metrics');  // Always enabled
+if (config.analyticsEnabled) enabledModules.push('Analytics');
+if (config.modeClassifierEnabled) enabledModules.push('Mode Classifier');
+const moduleList = enabledModules.length > 0 ? enabledModules.join(', ') : 'None';
+
+// Display startup banner
+console.log('');
+console.log('[Core] ════════════════════════════════════════════════════════════');
+console.log('[Core] 🚀 DXClusterAPI Starting');
+console.log('[Core] ════════════════════════════════════════════════════════════');
+console.log('[Core]     PID:', process.pid);
+console.log('[Core]     Node.js:', process.versions.node);
+console.log('[Core]     Mode:', config.mode);
+console.log('[Core]     Modules:', moduleList);
+if (config.fileLoggingEnabled && logStream) {
+    console.log('[Core]     Log file:', LOG_FILE);
+}
+console.log('[Core] ════════════════════════════════════════════════════════════');
+console.log('');
 
 /**
  * Helper function to log messages to file and console
@@ -510,6 +482,8 @@ function getApiInfo() {
     
     // Common endpoints
     endpoints.health = config.baseUrl + '/health';
+    endpoints.metrics = config.baseUrl + '/metrics';
+    endpoints.logs = config.baseUrl + '/logs';
     if (config.analyticsEnabled) {
         endpoints.analytics = config.baseUrl + '/analytics';
     }

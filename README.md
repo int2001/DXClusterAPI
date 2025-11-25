@@ -371,7 +371,7 @@ PERSISTENCE_PATH=                 # Optional custom path (default: data/spots-ca
 **Note**: Expired spots (`SPOT_MAX_AGE`) and DXCC entries (7 days) are automatically filtered during load.
 
 ### Metrics Module
-- **Default**: Enabled automatically
+- **Status**: Always enabled (cannot be disabled)
 - **Purpose**: Provides Prometheus metrics for monitoring and observability
 - **Location**: `modules/metrics/`
 - **Endpoint**: `/metrics`
@@ -389,6 +389,8 @@ PERSISTENCE_PATH=                 # Optional custom path (default: data/spots-ca
 - `dxcluster_websocket_connections` - Active WebSocket connections
 - `dxcluster_cluster_connections` - Cluster status (labeled)
 - `dxcluster_spots_by_band` - Spot distribution by band
+
+**Note**: No configuration needed - metrics are always available at `/metrics` endpoint.
 
 ### Rate Limiter Module
 - **Default**: `false` (disabled, enable for production if needed)
