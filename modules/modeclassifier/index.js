@@ -32,7 +32,7 @@ class ModeClassifier {
                            'HELL', 'MT63', 'DOMINO', 'PACKET', 'PACTOR', 'CLOVER', 'AMTOR',
                            'SITOR', 'SSTV', 'FAX', 'CHIP', 'CHIP64', 'ROS'],
             DIGITAL_VOICE: ['DIGITALVOICE', 'DSTAR', 'C4FM', 'DMR', 'FREEDV', 'M17'],
-            DIGITAL_HF: ['VARA', 'ARDOP']
+            DIGITAL_HF: ['VARA', 'VARAC', 'ARDOP']
         };
         
         // LSB/USB threshold (below 10 MHz = LSB, above = USB)
@@ -160,6 +160,12 @@ class ModeClassifier {
         }
         if (/\bFM\b/.test(upperMessage)) {
             return { mode: 'phone', submode: 'FM', confidence: 1.0 };
+        }
+
+        // HF Digital modes (VARA, VarAC, ARDOP)
+        const digitalHF = this.modes.DIGITAL_HF.find(m => new RegExp(`\\b${m}\\b`).test(upperMessage));
+        if (digitalHF) {
+            return { mode: 'digi', submode: digitalHF, confidence: 1.0 };
         }
 
         // Other digital modes
