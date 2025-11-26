@@ -81,6 +81,7 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         dxcc_lookup_wavelog_url: process.env.WAVELOG_URL,
         dxcc_lookup_wavelog_key: process.env.WAVELOG_KEY,
         maxConcurrentDxcc: parseInt(process.env.MAX_CONCURRENT_DXCC) || 2, // PHP worker limit
+        dxccCacheMaxSize: parseInt(process.env.DXCC_CACHE_MAX_SIZE) || 5000, // Max DXCC cache entries
         
         // Module configurations
         clusterEnabled: process.env.CLUSTER_ENABLED !== 'false',
@@ -294,6 +295,7 @@ console.log('[Core]     PID:', process.pid);
 console.log('[Core]     Node.js:', process.versions.node);
 console.log('[Core]     Mode:', config.mode);
 console.log('[Core]     Modules:', moduleList);
+console.log('[Core]     DXCC Cache:', config.dxccCacheMaxSize, 'max entries');
 if (config.fileLoggingEnabled && logStream) {
     console.log('[Core]     Log file:', LOG_FILE);
 }
@@ -630,7 +632,6 @@ function broadcastSpot(spot) {
 
     // Broadcast to all connected Socket.IO clients
     io.emit('spot', message);
-    console.log(`[Core] Broadcasted spot to ${wsClients.size} Socket.IO clients`);
 }
 
 // Hook up cluster spot events to handlespot function
@@ -1913,7 +1914,7 @@ function saveFailedLookupsCache() {
 // Using LRU (Least Recently Used) eviction strategy
 const dxccCache = new Map();
 const DXCC_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;  // 7 days (callsigns don't change often)
-const DXCC_CACHE_MAX_SIZE = 20000;  // Increased to 20k - reduces PHP lookups dramatically
+const DXCC_CACHE_MAX_SIZE = config.dxccCacheMaxSize;  // Configurable via DXCC_CACHE_MAX_SIZE env var (default: 5000)
 const DXCC_CLEANUP_INTERVAL = 60 * 60 * 1000;  // Cleanup every hour
 
 // Pending lookup queue to batch requests and prevent duplicate concurrent lookups
@@ -2133,10 +2134,22 @@ async function performDxccLookup(call) {
         clearTimeout(timeoutId);  // Clear the timeout if the request succeeds
 
         if (!response.ok) {
-            throw new Error(`DXCC lookup failed with status: ${response.status}`);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
         const result = await response.json();
+        
+        // Check for Wavelog API error response (returns HTTP 200 but with error in body)
+        if (result.status === 'failed') {
+            throw new Error(`Wavelog API error: ${result.reason || 'unknown error'}`);
+        }
+        
+        // Validate that we got meaningful DXCC data
+        // If the API returns empty/null values, treat it as a failed lookup
+        if (!result.cont && !result.dxcc && !result.dxcc_id) {
+            throw new Error(`Wavelog returned empty DXCC data for callsign: ${call}`);
+        }
+        
         const returner = {
             cont: result.cont,
             entity: result.dxcc ? toUcWord(result.dxcc) : '',
@@ -2178,10 +2191,10 @@ async function performDxccLookup(call) {
 
         // Log the error with server info on first failure, then only log every 10th error
         if (consecutiveErrorCount === 1) {
-            console.error(`[Core] DXCC lookup failed for callsign: ${call}`);
+            console.error(`[Core] DXCC lookup failed for callsign: ${call}, error: ${error.message}`);
             console.error(`[Core] Served by WaveLog server: ${dxccServer}`);
         } else if (consecutiveErrorCount % 10 === 0) {
-            console.error(`[Core] DXCC lookup failed: ${consecutiveErrorCount} consecutive errors`);
+            console.error(`[Core] DXCC lookup failed: ${consecutiveErrorCount} consecutive errors, last error: ${error.message}`);
         }
         
         // Cache failed lookups for 5 minutes to avoid hammering on bad callsigns
@@ -2189,7 +2202,8 @@ async function performDxccLookup(call) {
             data: {},
             timestamp: Date.now(),
             accessCount: 1,
-            failed: true
+            failed: true,
+            failReason: error.message
         });
         
         // Return empty object on error to prevent undefined access
