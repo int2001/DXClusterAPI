@@ -829,6 +829,7 @@ app.get(config.baseUrl + '/health', (req, res) => {
             spots: spots.length,
             maxcache: config.maxcache,
             dxccCache: dxccCache.size,
+            dxccCacheMaxSize: DXCC_CACHE_MAX_SIZE,
             responseCache: responseCache.size,
             bandIndex: bandIndex.size,
             frequencyIndex: frequencyIndex.size,

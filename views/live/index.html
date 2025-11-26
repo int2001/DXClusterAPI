@@ -911,8 +911,12 @@
         <div class="stats">
             <div class="page-stats">
                 <div class="stat-item">
-                    <span class="stat-label">Total Spots</span>
-                    <span class="stat-value" id="totalSpots">0</span>
+                    <span class="stat-label">Spots</span>
+                    <span class="stat-value"><span id="totalSpots">0</span>/<span id="maxSpots">-</span></span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">DXCC Cache</span>
+                    <span class="stat-value"><span id="dxccCacheSize">0</span>/<span id="dxccCacheMax">-</span></span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-label">Spots/Min</span>
@@ -1217,8 +1221,8 @@
                                 const spots = await response.json();
                                 console.log(`Loaded ${spots.length} initial spots from server`);
 
-                                // Add all spots to the display
-                                spots.forEach(spot => addSpot(spot));
+                                // Add all spots to the display (skip rate counting for restored spots)
+                                spots.forEach(spot => addSpot(spot, true));
                             }
                         } catch (error) {
                             console.error('Failed to load initial spots:', error);
@@ -1226,7 +1230,7 @@
                     });
 
                     socket.on('spot', (message) => {
-                        addSpot(message.data);
+                        addSpot(message.data, false);
                     });
 
                     socket.on('connected', (data) => {
@@ -1372,7 +1376,7 @@
             }
         }
 
-        function addSpot(spot) {
+        function addSpot(spot, skipRateCount = false) {
             const table = document.getElementById('spotsTable');
 
             // Remove "no data" message if present
@@ -1477,15 +1481,17 @@
                 table.removeChild(table.lastChild);
             }
 
-            // Note: totalSpots is updated by separate 5-second interval from /stats endpoint
+            // Note: totalSpots is updated by separate 5-second interval from /health endpoint
             // to show actual cache size, not just displayed/filtered spots
 
-            // Track spots for rate calculation
-            spotsInLastMinute.push(Date.now());
-            // Remove spots older than 1 minute
-            const oneMinuteAgo = Date.now() - 60000;
-            spotsInLastMinute = spotsInLastMinute.filter(time => time > oneMinuteAgo);
-            document.getElementById('spotsPerMin').textContent = spotsInLastMinute.length;
+            // Track spots for rate calculation (skip for restored/initial spots)
+            if (!skipRateCount) {
+                spotsInLastMinute.push(Date.now());
+                // Remove spots older than 1 minute
+                const oneMinuteAgo = Date.now() - 60000;
+                spotsInLastMinute = spotsInLastMinute.filter(time => time > oneMinuteAgo);
+                document.getElementById('spotsPerMin').textContent = spotsInLastMinute.length;
+            }
         }
 
         function escapeHtml(text) {
@@ -2486,8 +2492,8 @@
                         noDataRow.remove();
                     }
 
-                    // Add all spots to display
-                    spots.forEach(spot => addSpot(spot));
+                    // Add all spots to display (skip rate counting for restored spots)
+                    spots.forEach(spot => addSpot(spot, true));
                 }
             } catch (error) {
                 console.error('Failed to load initial spots:', error);
@@ -2501,20 +2507,25 @@
         updateServerHealth();
         setInterval(updateServerHealth, 10000);
 
-        // Update total spots from cache every 5 seconds
-        async function updateTotalSpots() {
+        // Update cache stats (spots and DXCC) every 5 seconds
+        async function updateCacheStats() {
             try {
-                const response = await fetch(apiUrl('/stats'));
+                const response = await fetch(apiUrl('/health'));
                 if (response.ok) {
-                    const stats = await response.json();
-                    document.getElementById('totalSpots').textContent = stats.entries || 0;
+                    const health = await response.json();
+                    // Update spots count and max
+                    document.getElementById('totalSpots').textContent = health.cache?.spots || 0;
+                    document.getElementById('maxSpots').textContent = health.cache?.maxcache || '-';
+                    // Update DXCC cache count and max
+                    document.getElementById('dxccCacheSize').textContent = health.cache?.dxccCache || 0;
+                    document.getElementById('dxccCacheMax').textContent = health.cache?.dxccCacheMaxSize || '-';
                 }
             } catch (error) {
                 // Silently fail - don't update on error
             }
         }
-        updateTotalSpots();  // Initial update
-        setInterval(updateTotalSpots, 5000);  // Update every 5 seconds
+        updateCacheStats();  // Initial update
+        setInterval(updateCacheStats, 5000);  // Update every 5 seconds
 
         // Update uptime from health endpoint every minute
         async function updateUptime() {
