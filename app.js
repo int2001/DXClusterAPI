@@ -2058,10 +2058,11 @@ function saveFailedLookupsCache() {
     }
 }
 
-// DXCC cache: Map<callsign, {data, timestamp, accessCount}>
+// DXCC cache: Map<callsign, {data, timestamp, accessCount, failed?, failReason?}>
 // Using LRU (Least Recently Used) eviction strategy
 const dxccCache = new Map();
 const DXCC_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;  // 7 days (callsigns don't change often)
+const DXCC_FAILED_CACHE_TTL = 5 * 60 * 1000;     // 5 minutes for failed lookups (allow retry)
 const DXCC_CACHE_MAX_SIZE = config.dxccCacheMaxSize;  // Configurable via DXCC_CACHE_MAX_SIZE env var (default: 5000)
 const DXCC_CLEANUP_INTERVAL = 60 * 60 * 1000;  // Cleanup every hour
 
@@ -2169,17 +2170,21 @@ function responseCacheMiddleware(ttl = RESPONSE_CACHE_TTL) {
 setInterval(() => {
     const now = Date.now();
     let removedCount = 0;
+    let removedFailedCount = 0;
     
     // Clean callsign cache
     for (const [call, entry] of dxccCache.entries()) {
-        if (now - entry.timestamp > DXCC_CACHE_TTL) {
+        // Use shorter TTL for failed lookups
+        const ttl = entry.failed ? DXCC_FAILED_CACHE_TTL : DXCC_CACHE_TTL;
+        if (now - entry.timestamp > ttl) {
             dxccCache.delete(call);
             removedCount++;
+            if (entry.failed) removedFailedCount++;
         }
     }
     
     if (removedCount > 0) {
-        console.log(`[DXCC Cache] Cleaned up ${removedCount} callsigns. Cache: ${dxccCache.size} callsigns`);
+        console.log(`[DXCC Cache] Cleaned up ${removedCount} entries (${removedFailedCount} failed). Cache: ${dxccCache.size} callsigns`);
     }
 }, DXCC_CLEANUP_INTERVAL);
 
@@ -2215,11 +2220,17 @@ async function dxcc_lookup(call) {
     const cached = dxccCache.get(normalizedCall);
     if (cached) {
         const age = Date.now() - cached.timestamp;
-        if (age < DXCC_CACHE_TTL) {
+        // Use shorter TTL for failed lookups to allow retry
+        const ttl = cached.failed ? DXCC_FAILED_CACHE_TTL : DXCC_CACHE_TTL;
+        
+        if (age < ttl) {
             // Move to end of Map (LRU) by deleting and re-adding
             dxccCache.delete(normalizedCall);
             cached.accessCount = (cached.accessCount || 0) + 1;
-            cached.timestamp = Date.now(); // Refresh timestamp on access
+            // Only refresh timestamp for successful lookups (don't extend failed entry lifetime)
+            if (!cached.failed) {
+                cached.timestamp = Date.now();
+            }
             dxccCache.set(normalizedCall, cached);
             // Return a shallow copy to prevent cache pollution from POTA/SOTA/enrichment data
             return { ...cached.data };
@@ -2345,7 +2356,8 @@ async function performDxccLookup(call) {
             console.error(`[Core] DXCC lookup failed: ${consecutiveErrorCount} consecutive errors, last error: ${error.message}`);
         }
         
-        // Cache failed lookups for 5 minutes to avoid hammering on bad callsigns
+        // Cache failed lookups with shorter TTL (DXCC_FAILED_CACHE_TTL = 5 min)
+        // This prevents hammering on temporary failures while allowing quick retry
         dxccCache.set(call, {
             data: {},
             timestamp: Date.now(),
