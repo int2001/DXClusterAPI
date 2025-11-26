@@ -574,8 +574,41 @@ if (config.livePageEnabled) {
     console.log('[Core] Live page disabled');
 }
 
-// API Analytics endpoint - shows who is using the API
-app.get(config.baseUrl + '/analytics', (req, res) => {
+/**
+ * Middleware function to check for LIVE_PAGE_PASSWORD authentication
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ * @param {function} next - Express next function
+ */
+function checkLivePagePassword(req, res, next) {
+    // If no password is configured, allow access
+    if (!config.livePagePassword) {
+        return next();
+    }
+
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+        res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Analytics"');
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Decode Basic Auth credentials
+    const base64Credentials = authHeader.split(' ')[1];
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+    const [username, password] = credentials.split(':');
+
+    // Verify password (username is ignored)
+    if (password !== config.livePagePassword) {
+        res.setHeader('WWW-Authenticate', 'Basic realm="DXClusterAPI Analytics"');
+        return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    next();
+}
+
+// API Analytics endpoint - shows who is using the API (password protected if LIVE_PAGE_PASSWORD is set)
+app.get(config.baseUrl + '/analytics', checkLivePagePassword, (req, res) => {
     res.json(analytics.getSummary());
 });
 
@@ -788,7 +821,10 @@ function initializeWebSocket(server) {
     }
 
     // Initialize Socket.IO with CORS enabled and proper configuration
+    // Set the Socket.IO path to respect BASEURL setting
+    const socketIoPath = config.baseUrl ? `${config.baseUrl}/socket.io` : '/socket.io';
     io = new Server(server, {
+        path: socketIoPath,
         cors: {
             origin: "*",
             methods: ["GET", "POST"]
@@ -827,7 +863,7 @@ function initializeWebSocket(server) {
         console.error('[Core] Socket.IO server error:', error);
     });
 
-    console.log(`[Core] Socket.IO server initialized with WebSocket + polling fallback`);
+    console.log(`[Core] Socket.IO server initialized with WebSocket + polling fallback at path: ${socketIoPath}`);
     return io;
 }
 

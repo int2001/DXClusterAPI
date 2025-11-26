@@ -1112,16 +1112,28 @@
             return baseUrl + endpoint;
         };
 
-        // Get Socket.IO server URL (just origin + port, no path)
-        const getSocketIoUrl = () => {
+        // Get Socket.IO server URL and path
+        const getSocketIoConfig = () => {
             const protocol = window.location.protocol;
             const host = window.location.host;
-            // For Socket.IO, we need just origin, not full path
-            return `${protocol}//${host}`;
+            // For Socket.IO, we need origin and potentially custom path
+            const url = `${protocol}//${host}`;
+
+            // If BASEURL is configured, Socket.IO path needs to include it
+            // Socket.IO client expects path without leading slash
+            let socketIoPath = '/socket.io';
+            if (baseUrl && baseUrl !== '') {
+                socketIoPath = `${baseUrl}/socket.io`;
+            }
+
+            return {
+                url: url,
+                path: socketIoPath
+            };
         };
 
-        const socketIoUrl = getSocketIoUrl();
-        console.log('Socket.IO server URL:', socketIoUrl);
+        const socketIoConfig = getSocketIoConfig();
+        console.log('Socket.IO server config:', socketIoConfig);
 
         let socket;
         let usePolling = false;
@@ -1139,7 +1151,8 @@
             if (typeof io !== 'undefined') {
                 try {
                     console.log('Attempting Socket.IO connection...');
-                    socket = io(socketIoUrl, {
+                    socket = io(socketIoConfig.url, {
+                        path: socketIoConfig.path,
                         transports: ['websocket', 'polling'],  // WebSocket first, fallback to polling
                         timeout: 20000,  // 20 second connection timeout
                         reconnection: true,           // Enable automatic reconnection
