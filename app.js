@@ -1411,14 +1411,37 @@ async function handlespot(spot, spot_source = "cluster") {
 		const hasValidSpotted = dxSpot.dxcc_spotted && Object.keys(dxSpot.dxcc_spotted).length > 0;
 		
 		if (!hasValidSpotter || !hasValidSpotted) {
+			// Get failure reasons from DXCC cache for better diagnostics
+			const spotterCacheEntry = dxccCache.get(normalizeCallsign(spot.spotter));
+			const spottedCacheEntry = dxccCache.get(normalizeCallsign(spot.spotted));
+			
+			const spotterFailReason = !hasValidSpotter && spotterCacheEntry?.failReason 
+				? spotterCacheEntry.failReason 
+				: (!hasValidSpotter ? 'empty result' : null);
+			const spottedFailReason = !hasValidSpotted && spottedCacheEntry?.failReason 
+				? spottedCacheEntry.failReason 
+				: (!hasValidSpotted ? 'empty result' : null);
+			
 			const failedCallsign = !hasValidSpotter ? spot.spotter : spot.spotted;
+			const failReason = !hasValidSpotter ? spotterFailReason : spottedFailReason;
+			
 			const reason = !hasValidSpotter && !hasValidSpotted 
-				? 'Both spotter and spotted DXCC lookup returned empty' 
+				? 'Both spotter and spotted DXCC lookup failed' 
 				: !hasValidSpotter 
-					? 'Spotter DXCC lookup returned empty' 
-					: 'Spotted DXCC lookup returned empty';
-			addFailedLookup({ ...spot, source: spot_source }, reason, failedCallsign);
-			console.warn(`[DXCC Validation] Rejected spot with failed DXCC lookup - spotted: ${spot.spotted} (valid: ${hasValidSpotted}), spotter: ${spot.spotter} (valid: ${hasValidSpotter}), source: ${spot_source}`);
+					? 'Spotter DXCC lookup failed' 
+					: 'Spotted DXCC lookup failed';
+			
+			addFailedLookup({ ...spot, source: spot_source }, reason, failedCallsign, failReason);
+			
+			// Build detailed log message with failure reasons
+			let logDetails = [];
+			if (!hasValidSpotter) {
+				logDetails.push(`spotter ${spot.spotter}: ${spotterFailReason}`);
+			}
+			if (!hasValidSpotted) {
+				logDetails.push(`spotted ${spot.spotted}: ${spottedFailReason}`);
+			}
+			console.warn(`[DXCC Validation] Rejected spot from ${spot_source} - ${logDetails.join(', ')}`);
 			return;
 		}
 		
