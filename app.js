@@ -1078,15 +1078,21 @@ async function initializePersistence() {
                     sourceIndex.get(source).add(spot);
                     
                     // Rebuild statistics
-                    const modeType = spot.mode_type || 'unknown';
-                    modeTypeStats[modeType] = (modeTypeStats[modeType] || 0) + 1;
-                    
-                    if (spot.dxcc_spotted?.continent) {
-                        continentStats[spot.dxcc_spotted.continent] = (continentStats[spot.dxcc_spotted.continent] || 0) + 1;
+                    // Track mode types (use spot.mode, not spot.mode_type)
+                    if (spot.mode && modeTypeStats[spot.mode] !== undefined) {
+                        modeTypeStats[spot.mode]++;
+                    } else {
+                        modeTypeStats.unknown++;
                     }
                     
-                    if (spot.dxcc_spotter?.continent) {
-                        continentDeStats[spot.dxcc_spotter.continent] = (continentDeStats[spot.dxcc_spotter.continent] || 0) + 1;
+                    // Track DX continents (use .cont not .continent)
+                    if (spot.dxcc_spotted?.cont) {
+                        continentStats[spot.dxcc_spotted.cont] = (continentStats[spot.dxcc_spotted.cont] || 0) + 1;
+                    }
+                    
+                    // Track spotter continents (use .cont not .continent)
+                    if (spot.dxcc_spotter?.cont) {
+                        continentDeStats[spot.dxcc_spotter.cont] = (continentDeStats[spot.dxcc_spotter.cont] || 0) + 1;
                     }
                     
                     if (spot.source === 'rbn') {
