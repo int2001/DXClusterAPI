@@ -17,12 +17,20 @@ class Clusters extends EventEmitter {
         this.enabled = enabled;
         this.clusters = clusters;
         this.connections = [];
+        this.reconnectDelays = new Map(); // Track reconnect delays per cluster
         this.stats = {
             totalClusters: clusters.length,
             activeConnections: 0,
             reconnectAttempts: 0,
             spotsReceived: 0
         };
+        
+        // Reconnect settings
+        this.INITIAL_RECONNECT_DELAY = 5000;       // 5 seconds initial
+        this.MAX_RECONNECT_DELAY = 3600000;        // 1 hour max (retry hourly when cluster is down)
+        this.RECONNECT_BACKOFF_FACTOR = 2;         // Double delay each time
+        this.reconnectTimers = new Map();          // Track active reconnect timers
+        this.activeConnMap = new Map();            // Track which clusters are currently connected
     }
 
     /**
@@ -55,44 +63,80 @@ class Clusters extends EventEmitter {
     }
 
     /**
-     * Connect to a single cluster
+     * Connect to a single cluster with exponential backoff on failure
      * @private
      */
     _connectOne(cluster) {
+        const clusterKey = cluster.host + ':' + cluster.port;
+        
+        // Cancel any pending reconnect timer for this cluster
+        if (this.reconnectTimers.has(clusterKey)) {
+            clearTimeout(this.reconnectTimers.get(clusterKey));
+            this.reconnectTimers.delete(clusterKey);
+        }
+        
+        // Remove old connection from connections array if exists
+        this.connections = this.connections.filter(c => 
+            !(c.cluster.host === cluster.host && c.cluster.port === cluster.port)
+        );
+        
         logConnectionState('attempting', cluster.host, 'DXCluster server for receiving spots');
         const conn = new DXCluster();
+        
+        // Track connection state to prevent double-counting
+        let isConnected = false;
         
         try {
             conn.connect(cluster).then(() => {
                 logConnectionState('connected', cluster.host, 'DXCluster server for receiving spots');
-                this.stats.activeConnections++;
+                isConnected = true;
+                this.activeConnMap.set(clusterKey, true);
+                this._updateActiveConnections();
+                // Reset reconnect delay on successful connection
+                this.reconnectDelays.delete(clusterKey);
             })
             .catch((err) => {
                 logConnectionState('failed', cluster.host, 'DXCluster server for receiving spots', err);
                 this.stats.reconnectAttempts++;
-                this._connectOne(cluster);
+                this._scheduleReconnect(cluster, clusterKey);
             });
 
             // Event listeners for connection status changes
             conn.on('close', () => {
-                logConnectionState('closed', cluster.host, 'DXCluster server connection closed');
-                this.stats.activeConnections--;
-                this.stats.reconnectAttempts++;
-                this._connectOne(cluster);
+                if (isConnected) {
+                    logConnectionState('closed', cluster.host, 'DXCluster server connection closed');
+                    isConnected = false;
+                    this.activeConnMap.delete(clusterKey);
+                    this._updateActiveConnections();
+                    this.stats.reconnectAttempts++;
+                    // Connection lost - start with shorter delay for quick recovery
+                    this.reconnectDelays.set(clusterKey, this.INITIAL_RECONNECT_DELAY);
+                    this._scheduleReconnect(cluster, clusterKey);
+                }
             });
 
             conn.on('timeout', () => {
-                logConnectionState('timeout', cluster.host, 'DXCluster server connection timed out');
-                this.stats.activeConnections--;
-                this.stats.reconnectAttempts++;
-                this._connectOne(cluster);
+                if (isConnected) {
+                    logConnectionState('timeout', cluster.host, 'DXCluster server connection timed out');
+                    isConnected = false;
+                    this.activeConnMap.delete(clusterKey);
+                    this._updateActiveConnections();
+                    this.stats.reconnectAttempts++;
+                    // Connection lost - start with shorter delay for quick recovery
+                    this.reconnectDelays.set(clusterKey, this.INITIAL_RECONNECT_DELAY);
+                    this._scheduleReconnect(cluster, clusterKey);
+                }
             });
 
             conn.on('error', (err) => {
-                logConnectionState('error', cluster.host, 'DXCluster server connection error', err);
-                this.stats.activeConnections--;
+                if (isConnected) {
+                    logConnectionState('error', cluster.host, 'DXCluster server connection error', err);
+                    isConnected = false;
+                    this.activeConnMap.delete(clusterKey);
+                    this._updateActiveConnections();
+                }
                 this.stats.reconnectAttempts++;
-                this._connectOne(cluster);
+                this._scheduleReconnect(cluster, clusterKey);
             });
 
             // Forward spot events to parent
@@ -101,11 +145,53 @@ class Clusters extends EventEmitter {
                 this.emit('spot', spot, cluster.cluster || 'cluster');
             });
 
-            this.connections.push({ cluster, conn });
+            this.connections.push({ cluster, conn, clusterKey });
         } catch (e) {
             logConnectionState('error', cluster.host, 'DXCluster not reachable', e);
             this.stats.reconnectAttempts++;
+            this._scheduleReconnect(cluster, clusterKey);
         }
+    }
+    
+    /**
+     * Update active connections count from the map
+     * @private
+     */
+    _updateActiveConnections() {
+        this.stats.activeConnections = this.activeConnMap.size;
+    }
+
+    /**
+     * Schedule a reconnection attempt with exponential backoff
+     * @private
+     */
+    _scheduleReconnect(cluster, clusterKey) {
+        // Cancel any existing timer for this cluster
+        if (this.reconnectTimers.has(clusterKey)) {
+            clearTimeout(this.reconnectTimers.get(clusterKey));
+        }
+        
+        // Get current delay or start with initial delay
+        let currentDelay = this.reconnectDelays.get(clusterKey) || this.INITIAL_RECONNECT_DELAY;
+        
+        // Format delay for logging
+        const delaySeconds = Math.round(currentDelay / 1000);
+        const delayFormatted = delaySeconds >= 60 
+            ? `${Math.round(delaySeconds / 60)}m` 
+            : `${delaySeconds}s`;
+        
+        console.log(`[Clusters] Reconnecting to ${cluster.host} in ${delayFormatted}...`);
+        
+        const timerId = setTimeout(() => {
+            this.reconnectTimers.delete(clusterKey);
+            this._connectOne(cluster);
+        }, currentDelay);
+        
+        this.reconnectTimers.set(clusterKey, timerId);
+        
+        // Increase delay for next attempt (exponential backoff with max cap)
+        const nextDelay = Math.min(currentDelay * this.RECONNECT_BACKOFF_FACTOR, this.MAX_RECONNECT_DELAY);
+        this.reconnectDelays.set(clusterKey, nextDelay);
     }
 
     /**
@@ -127,7 +213,16 @@ class Clusters extends EventEmitter {
      */
     shutdown() {
         console.log('[Clusters] Shutting down cluster connections...');
-        this.connections.forEach(({ conn }) => {
+        
+        // Cancel all pending reconnect timers
+        this.reconnectTimers.forEach((timerId, clusterKey) => {
+            clearTimeout(timerId);
+            console.log(`[Clusters] Cancelled reconnect timer for ${clusterKey}`);
+        });
+        this.reconnectTimers.clear();
+        
+        // Close all connections
+        this.connections.forEach(({ conn, clusterKey }) => {
             try {
                 conn.removeAllListeners();
                 // If DXCluster module has a disconnect/close method, call it here
@@ -135,7 +230,10 @@ class Clusters extends EventEmitter {
                 console.error('[Clusters] Error closing cluster connection:', e);
             }
         });
+        
         this.connections = [];
+        this.activeConnMap.clear();
+        this.reconnectDelays.clear();
         this.stats.activeConnections = 0;
     }
 }
