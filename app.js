@@ -860,6 +860,7 @@ app.get(config.baseUrl + '/health', (req, res) => {
         cache: {
             spots: spots.length,
             maxcache: config.maxcache,
+            apiSpotLimit: config.apiSpotLimit,
             dxccCache: dxccCache.size,
             dxccCacheMaxSize: DXCC_CACHE_MAX_SIZE,
             responseCache: responseCache.size,

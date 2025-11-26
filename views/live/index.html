@@ -919,6 +919,10 @@
                     <span class="stat-value"><span id="dxccCacheSize">0</span>/<span id="dxccCacheMax">-</span></span>
                 </div>
                 <div class="stat-item">
+                    <span class="stat-label">API Limit</span>
+                    <span class="stat-value" id="apiSpotLimit">-</span>
+                </div>
+                <div class="stat-item">
                     <span class="stat-label">Spots/Min</span>
                     <span class="stat-value" id="spotsPerMin">0</span>
                 </div>
@@ -2515,6 +2519,8 @@
                     // Update DXCC cache count and max
                     document.getElementById('dxccCacheSize').textContent = health.cache?.dxccCache || 0;
                     document.getElementById('dxccCacheMax').textContent = health.cache?.dxccCacheMaxSize || '-';
+                    // Update API spot limit
+                    document.getElementById('apiSpotLimit').textContent = health.cache?.apiSpotLimit || '-';
                 }
             } catch (error) {
                 // Silently fail - don't update on error
