@@ -39,6 +39,7 @@ if (!global.fetch) { global.fetch = fetch; }
 // ================================================================
 // Spot cache and indexes
 let spots = [];
+let httpServer = null;  // HTTP server instance for graceful shutdown
 const bandIndex = new Map();  // Map<band, Set<spot>>
 const frequencyIndex = new Map();  // Map<frequency, spot>
 const sourceIndex = new Map();  // Map<source, Set<spot>>
@@ -1004,12 +1005,12 @@ async function startHttpServer() {
         const PORT = Number(process.env.PORT) || config.webport || 3000;
         const HOST = process.env.HOST || (config.mode === 'docker' ? '0.0.0.0' : '127.0.0.1');
         
-        const server = app.listen(PORT, HOST, () => {
+        httpServer = app.listen(PORT, HOST, () => {
             console.log(`[Core] HTTP server listening on ${HOST}:${PORT}`);
         });
 
         // Initialize WebSocket on this server
-        initializeWebSocket(server);
+        initializeWebSocket(httpServer);
         
         // Initialize DX Cluster connections
         clusterManager.init();
@@ -1182,6 +1183,23 @@ function gracefulShutdown(signal) {
     // Save analytics data before shutdown
     if (analytics) {
         analytics.stop();
+    }
+    
+    // Close HTTP server with drain timeout (allow in-flight requests to complete)
+    if (httpServer) {
+        console.log('[Core] Closing HTTP server (waiting for in-flight requests)...');
+        httpServer.close((err) => {
+            if (err) {
+                console.error('[Core] Error closing HTTP server:', err.message);
+            } else {
+                console.log('[Core] HTTP server closed');
+            }
+        });
+        
+        // Force close after 10 seconds if connections don't drain
+        setTimeout(() => {
+            console.log('[Core] Force closing remaining connections after timeout');
+        }, 10000);
     }
     
     console.log('[Core] Graceful shutdown complete');

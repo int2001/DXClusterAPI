@@ -27,6 +27,10 @@ module.exports = class SOTASpots extends events.EventEmitter {
     this.BACKOFF_FACTOR = 2;
     this.currentBackoff = 0;            // 0 = no backoff active
     this.consecutiveErrors = 0;
+    
+    // Circuit breaker: stop retrying after too many consecutive failures
+    this.MAX_CONSECUTIVE_ERRORS = 50;   // Stop after 50 failures (~4 hours at max backoff)
+    this.circuitOpen = false;
   }
 
   /**
@@ -34,6 +38,13 @@ module.exports = class SOTASpots extends events.EventEmitter {
    */
   async run(opts = {}) {
     while (true) {
+      // Circuit breaker: stop if too many consecutive errors
+      if (this.circuitOpen) {
+        console.error('[SOTA] Circuit breaker OPEN - too many consecutive failures. Stopping polling.');
+        this.emit('circuit_open', { consecutiveErrors: this.consecutiveErrors });
+        return; // Exit the loop
+      }
+      
       // wait between polls (or backoff if in error state)
       const waitTime = this.currentBackoff > 0 
           ? this.currentBackoff 
@@ -157,6 +168,13 @@ module.exports = class SOTASpots extends events.EventEmitter {
         // Increment error count and calculate backoff
         this.consecutiveErrors++;
         
+        // Check circuit breaker threshold
+        if (this.consecutiveErrors >= this.MAX_CONSECUTIVE_ERRORS) {
+          this.circuitOpen = true;
+          console.error(`[SOTA] Circuit breaker triggered after ${this.consecutiveErrors} consecutive failures`);
+          continue; // Will exit on next iteration
+        }
+        
         if (this.currentBackoff === 0) {
           this.currentBackoff = this.INITIAL_BACKOFF;
         } else {
@@ -164,8 +182,18 @@ module.exports = class SOTASpots extends events.EventEmitter {
         }
         
         const nextRetrySeconds = Math.round(this.currentBackoff / 1000);
-        console.error(`[SOTA] Fetch failed (attempt ${this.consecutiveErrors}, retry in ${nextRetrySeconds}s): ${err.message || err}`);
+        console.error(`[SOTA] Fetch failed (attempt ${this.consecutiveErrors}/${this.MAX_CONSECUTIVE_ERRORS}, retry in ${nextRetrySeconds}s): ${err.message || err}`);
       }
     }
+  }
+  
+  /**
+   * Reset circuit breaker (can be called externally to retry)
+   */
+  resetCircuitBreaker() {
+    this.circuitOpen = false;
+    this.consecutiveErrors = 0;
+    this.currentBackoff = 0;
+    console.log('[SOTA] Circuit breaker reset');
   }
 };

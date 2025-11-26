@@ -1645,7 +1645,6 @@
                 if (!response.ok) throw new Error('Failed to fetch stats');
                 
                 const stats = await response.json();
-                console.log('Spot stats data:', stats); // Debug log
                 
                 // Build spot statistics HTML
                 let html = '';
@@ -1659,7 +1658,7 @@
                     const sortedSources = Object.entries(stats.sources).sort((a, b) => b[1] - a[1]);
                     
                     sortedSources.forEach(([source, count]) => {
-                        let displayName = source.toUpperCase();
+                        let displayName = escapeHtml(source.toUpperCase());
                         let borderColor = '#667eea';
                         
                         if (source === 'pota') {
@@ -1717,8 +1716,8 @@
                                 else if (item.band.includes('2')) borderColor = '#ff6b9d';
                                 
                                 html += `<div class="analytics-stat" style="border-left-color: ${borderColor};">
-                                    <div class="analytics-stat-label">${item.band}</div>
-                                    <div class="analytics-stat-value">${item.spots} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
+                                    <div class="analytics-stat-label">${escapeHtml(item.band)}</div>
+                                    <div class="analytics-stat-value">${count} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
                                 </div>`;
                             });
                             
@@ -1800,11 +1799,11 @@
                     
                     sortedContinents.forEach(([cont, count]) => {
                         const percentage = stats.entries > 0 ? ((count / stats.entries) * 100).toFixed(1) : 0;
-                        const label = continentLabels[cont] || cont;
+                        const label = continentLabels[cont] || escapeHtml(cont);
                         const color = continentColors[cont] || '#667eea';
                         
                         html += `<div class="analytics-stat" style="border-left-color: ${color};">
-                            <div class="analytics-stat-label">${label} (${cont})</div>
+                            <div class="analytics-stat-label">${escapeHtml(label)} (${escapeHtml(cont)})</div>
                             <div class="analytics-stat-value">${count} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
                         </div>`;
                     });
@@ -1845,11 +1844,11 @@
                     
                     sortedDEContinents.forEach(([cont, count]) => {
                         const percentage = stats.entries > 0 ? ((count / stats.entries) * 100).toFixed(1) : 0;
-                        const label = continentLabels[cont] || cont;
+                        const label = continentLabels[cont] || escapeHtml(cont);
                         const color = continentColors[cont] || '#667eea';
                         
                         html += `<div class="analytics-stat" style="border-left-color: ${color};">
-                            <div class="analytics-stat-label">${label} (${cont})</div>
+                            <div class="analytics-stat-label">${escapeHtml(label)} (${escapeHtml(cont)})</div>
                             <div class="analytics-stat-value">${count} <span style="font-size: 14px; color: #999;">(${percentage}%)</span></div>
                         </div>`;
                     });
@@ -1878,7 +1877,6 @@
                 if (!response.ok) throw new Error('Failed to fetch health data');
                 
                 const health = await response.json();
-                console.log('Health data:', health); // Debug log
                 
                 // Build memory details HTML
                 let html = '';
@@ -2000,13 +1998,13 @@
                 // Version
                 html += `<div class="analytics-stat">
                     <div class="analytics-stat-label">Version</div>
-                    <div class="analytics-stat-value" style="font-size: 16px;">${health.version || 'Unknown'}</div>
+                    <div class="analytics-stat-value" style="font-size: 16px;">${escapeHtml(health.version || 'Unknown')}</div>
                 </div>`;
                 
                 // Mode
                 html += `<div class="analytics-stat">
                     <div class="analytics-stat-label">Run Mode</div>
-                    <div class="analytics-stat-value" style="font-size: 16px;">${health.mode || 'Unknown'}</div>
+                    <div class="analytics-stat-value" style="font-size: 16px;">${escapeHtml(health.mode || 'Unknown')}</div>
                 </div>`;
                 
                 // Cache Limit
@@ -2074,7 +2072,6 @@
                 }
                 
                 const data = await response.json();
-                console.log('Logs data:', data);
                 
                 if (!data.logs || data.logs.length === 0) {
                     content.innerHTML = '<p style="text-align: center; color: #888;">No log entries found</p>';
@@ -2263,7 +2260,6 @@
                 if (!response.ok) throw new Error('Failed to fetch analytics');
                 
                 const data = await response.json();
-                console.log('Analytics data:', data); // Debug log
                 
                 // Build analytics HTML
                 let html = '';
