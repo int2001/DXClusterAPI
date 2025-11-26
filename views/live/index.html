@@ -924,6 +924,9 @@
                 </div>
             </div>
             <div class="server-info">
+                <button class="analytics-icon" onclick="showDxccLookup()" title="DXCC Lookup Debug Tool">
+                    🔍
+                </button>
                 <button class="analytics-icon" onclick="showLogs()" title="View Application Logs">
                     📋
                 </button>
@@ -1067,6 +1070,7 @@
             </div>
             <div class="modal-footer">
                 <span id="logsInfo" style="font-size: 12px; color: #666; margin-right: auto;"></span>
+                <button class="modal-btn" onclick="refreshLogs()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-right: 10px;">🔄 Refresh</button>
                 <button class="modal-btn close" onclick="closeLogsModal()">Close</button>
             </div>
         </div>
@@ -1086,6 +1090,39 @@
             </div>
             <div class="modal-footer">
                 <button class="modal-btn close" onclick="closeSpotStatsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DXCC Lookup Debug Modal -->
+    <div id="dxccLookupModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>🔍 DXCC Lookup Debug Tool</h2>
+                <button class="modal-close" onclick="closeDxccLookupModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: #666; margin-bottom: 15px; font-size: 13px;">
+                    Test DXCC lookups using the server's configured Wavelog API. Enter a callsign to see the raw API response.
+                </p>
+                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <input type="text" id="dxccCallsignInput" placeholder="Enter callsign (e.g., W1AW, DL1ABC)" 
+                           style="flex: 1; padding: 12px 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; font-family: 'Courier New', monospace; text-transform: uppercase;"
+                           onkeypress="if(event.key === 'Enter') performDxccLookup()">
+                    <button onclick="performDxccLookup()" 
+                            style="padding: 12px 25px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: transform 0.2s;"
+                            onmouseover="this.style.transform='scale(1.05)'" 
+                            onmouseout="this.style.transform='scale(1)'">
+                        Lookup
+                    </button>
+                </div>
+                <div id="dxccLookupResult" style="font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 8px; min-height: 200px; max-height: 400px; overflow-y: auto;">
+                    <p style="text-align: center; color: #888;">Enter a callsign above and click Lookup</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span id="dxccLookupInfo" style="font-size: 12px; color: #666; margin-right: auto;"></span>
+                <button class="modal-btn close" onclick="closeDxccLookupModal()">Close</button>
             </div>
         </div>
     </div>
@@ -2075,10 +2112,100 @@
             document.getElementById('logsModal').style.display = 'none';
         }
 
+        async function refreshLogs() {
+            // Simply call showLogs again to refresh the content
+            await showLogs();
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // ============================================================
+        // DXCC Lookup Debug Tool
+        // ============================================================
+        function showDxccLookup() {
+            const modal = document.getElementById('dxccLookupModal');
+            const input = document.getElementById('dxccCallsignInput');
+            const result = document.getElementById('dxccLookupResult');
+            const info = document.getElementById('dxccLookupInfo');
+            
+            modal.style.display = 'block';
+            result.innerHTML = '<p style="text-align: center; color: #888;">Enter a callsign above and click Lookup</p>';
+            info.textContent = '';
+            input.value = '';
+            input.focus();
+        }
+
+        function closeDxccLookupModal() {
+            document.getElementById('dxccLookupModal').style.display = 'none';
+        }
+
+        async function performDxccLookup() {
+            const input = document.getElementById('dxccCallsignInput');
+            const result = document.getElementById('dxccLookupResult');
+            const info = document.getElementById('dxccLookupInfo');
+            
+            const callsign = input.value.trim().toUpperCase();
+            
+            if (!callsign) {
+                result.innerHTML = '<p style="text-align: center; color: #dcdcaa;">Please enter a callsign</p>';
+                return;
+            }
+            
+            result.innerHTML = '<p style="text-align: center; color: #888;">Looking up ' + escapeHtml(callsign) + '...</p>';
+            info.textContent = '';
+            
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch(apiUrl('/api/v2/dxcc/' + encodeURIComponent(callsign)));
+                const duration = Date.now() - startTime;
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                // Format the JSON with syntax highlighting
+                const formatted = formatJsonWithHighlight(data);
+                result.innerHTML = formatted;
+                
+                // Show timing info
+                info.textContent = `Lookup completed in ${duration}ms`;
+                
+            } catch (error) {
+                console.error('DXCC lookup error:', error);
+                result.innerHTML = `<p style="color: #f48771;">❌ Lookup failed: ${escapeHtml(error.message)}</p>`;
+                info.textContent = 'Error occurred during lookup';
+            }
+        }
+
+        function formatJsonWithHighlight(obj) {
+            const json = JSON.stringify(obj, null, 2);
+            return json
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                    let cls = 'color: #b5cea8;'; // number
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            cls = 'color: #9cdcfe;'; // key
+                        } else {
+                            cls = 'color: #ce9178;'; // string
+                        }
+                    } else if (/true|false/.test(match)) {
+                        cls = 'color: #569cd6;'; // boolean
+                    } else if (/null/.test(match)) {
+                        cls = 'color: #569cd6;'; // null
+                    }
+                    return '<span style="' + cls + '">' + match + '</span>';
+                });
         }
 
         async function showAnalytics() {

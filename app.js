@@ -473,6 +473,93 @@ if (config.apiv2Enabled) {
 }
 
 // ================================================================
+// DXCC Lookup Debug Endpoint (for live page debugging tool)
+// ================================================================
+/**
+ * GET /api/v2/dxcc/:callsign - Debug endpoint for DXCC lookup
+ * Performs a DXCC lookup using the configured Wavelog API and returns the result
+ * This endpoint is for debugging purposes only
+ */
+app.get(config.baseUrl + '/api/v2/dxcc/:callsign', async (req, res) => {
+    const callsign = req.params.callsign?.toUpperCase().trim();
+    
+    if (!callsign) {
+        return res.status(400).json({
+            status: 'error',
+            error: 'Callsign is required',
+            data: null
+        });
+    }
+    
+    // Validate callsign format
+    const callsignRegex = /^[A-Z0-9\/\-]{2,20}$/i;
+    if (!callsignRegex.test(callsign)) {
+        return res.status(400).json({
+            status: 'error',
+            error: 'Invalid callsign format',
+            data: null
+        });
+    }
+    
+    // Check if DXCC lookup is configured
+    if (!config.dxcc_lookup_wavelog_url || !config.dxcc_lookup_wavelog_key) {
+        return res.status(503).json({
+            status: 'error',
+            error: 'DXCC lookup not configured (missing WAVELOG_URL or WAVELOG_KEY)',
+            data: null
+        });
+    }
+    
+    try {
+        const startTime = Date.now();
+        const normalizedCall = normalizeCallsign(callsign);
+        
+        // Check cache first
+        const cached = dxccCache.get(normalizedCall);
+        const fromCache = cached && (Date.now() - cached.timestamp < DXCC_CACHE_TTL);
+        
+        let result;
+        if (fromCache) {
+            result = cached.data;
+        } else {
+            result = await dxcc_lookup(callsign);
+        }
+        
+        const duration = Date.now() - startTime;
+        
+        // Check if lookup failed
+        const cacheEntry = dxccCache.get(normalizedCall);
+        const lookupFailed = cacheEntry?.failed === true;
+        
+        res.json({
+            status: lookupFailed ? 'failed' : 'success',
+            version: APP_VERSION,
+            timestamp: new Date().toISOString(),
+            data: {
+                callsign: callsign,
+                normalizedCallsign: normalizedCall,
+                dxcc: result,
+                lookupServer: config.dxcc_lookup_wavelog_url
+            },
+            meta: {
+                fromCache: fromCache,
+                cacheAge: fromCache ? Math.round((Date.now() - cached.timestamp) / 1000) : null,
+                lookupDuration: duration,
+                failReason: lookupFailed ? cacheEntry.failReason : null
+            }
+        });
+        
+    } catch (error) {
+        console.error('[DXCC Debug] Lookup error:', error);
+        res.status(500).json({
+            status: 'error',
+            error: error.message,
+            data: null
+        });
+    }
+});
+
+// ================================================================
 // Routes
 // ================================================================
 
