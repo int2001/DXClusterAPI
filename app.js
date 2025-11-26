@@ -421,7 +421,7 @@ const analytics = new Analytics({
     enabled: config.analyticsEnabled,
     dataFile: path.join(__dirname, 'data', 'analytics.json'),
     saveInterval: 5 * 60 * 1000, // 5 minutes
-    skipPaths: ['/health', '/info', '/analytics']
+    skipPaths: ['/health', '/info', '/analytics', '/logs', '/metrics', '/live']
 });
 
 // Apply analytics tracking middleware
@@ -1784,9 +1784,16 @@ function logStatistics() {
         try {
             const analyticsSummary = analytics.getSummary();
             totalRequests = analyticsSummary.totalRequests || 0;
+            
+            // Debug: log if analytics seems disabled or has no data
+            if (totalRequests === 0 && Object.keys(analyticsSummary.clients || {}).length === 0) {
+                console.log(`[Core] [DEBUG] Analytics enabled but no requests tracked yet`);
+            }
         } catch (e) {
-            // Analytics module might not be available
+            console.error(`[Core] [ERROR] Failed to get analytics summary: ${e.message}`);
         }
+    } else {
+        console.log(`[Core] [DEBUG] Analytics disabled (enabled: ${config.analyticsEnabled})`);
     }
     
     console.log(`[Core] ═══════════════════════════════════════════════════════════════════════════`);
