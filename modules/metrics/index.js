@@ -19,12 +19,20 @@ class Metrics {
      * @param {Function} config.getSpotsData - Function to get current spots
      * @param {Function} config.getClusterStatus - Function to get cluster connection status
      * @param {Function} config.getWebSocketClients - Function to get WebSocket client count
+     * @param {Function} config.getDxccCacheStats - Function to get DXCC cache statistics
+     * @param {Function} config.getResponseCacheStats - Function to get response cache statistics
+     * @param {Function} config.getModeTypeStats - Function to get mode type statistics
+     * @param {Function} config.getSourceStats - Function to get source statistics
      */
     constructor(config) {
         this.enabled = config.enabled !== false; // Default to enabled
         this.getSpotsData = config.getSpotsData;
         this.getClusterStatus = config.getClusterStatus;
         this.getWebSocketClients = config.getWebSocketClients;
+        this.getDxccCacheStats = config.getDxccCacheStats;
+        this.getResponseCacheStats = config.getResponseCacheStats;
+        this.getModeTypeStats = config.getModeTypeStats;
+        this.getSourceStats = config.getSourceStats;
 
         if (!this.enabled) {
             console.log('[Metrics] Module disabled');
@@ -85,6 +93,67 @@ class Metrics {
             labelNames: ['band']
         });
         this.register.registerMetric(this.spotsByBand);
+
+        // Spots by source (POTA, SOTA, RBN, cluster names)
+        this.spotsBySource = new promClient.Gauge({
+            name: 'dxcluster_spots_by_source',
+            help: 'Number of spots by source',
+            labelNames: ['source']
+        });
+        this.register.registerMetric(this.spotsBySource);
+
+        // Spots by mode type (CW, Phone, Digital, Unknown)
+        this.spotsByModeType = new promClient.Gauge({
+            name: 'dxcluster_spots_by_mode_type',
+            help: 'Number of spots by mode type',
+            labelNames: ['mode_type']
+        });
+        this.register.registerMetric(this.spotsByModeType);
+
+        // DXCC Cache metrics
+        this.dxccCacheSize = new promClient.Gauge({
+            name: 'dxcluster_dxcc_cache_size',
+            help: 'Current number of entries in DXCC cache'
+        });
+        this.register.registerMetric(this.dxccCacheSize);
+
+        this.dxccCacheMaxSize = new promClient.Gauge({
+            name: 'dxcluster_dxcc_cache_max_size',
+            help: 'Maximum size of DXCC cache'
+        });
+        this.register.registerMetric(this.dxccCacheMaxSize);
+
+        this.dxccCacheFailedEntries = new promClient.Gauge({
+            name: 'dxcluster_dxcc_cache_failed_entries',
+            help: 'Number of failed lookup entries in DXCC cache'
+        });
+        this.register.registerMetric(this.dxccCacheFailedEntries);
+
+        this.dxccCacheHitRatio = new promClient.Gauge({
+            name: 'dxcluster_dxcc_cache_hit_ratio',
+            help: 'DXCC cache hit ratio (0-1)'
+        });
+        this.register.registerMetric(this.dxccCacheHitRatio);
+
+        // Response Cache metrics
+        this.responseCacheSize = new promClient.Gauge({
+            name: 'dxcluster_response_cache_size',
+            help: 'Current number of entries in response cache'
+        });
+        this.register.registerMetric(this.responseCacheSize);
+
+        this.responseCacheMaxSize = new promClient.Gauge({
+            name: 'dxcluster_response_cache_max_size',
+            help: 'Maximum size of response cache'
+        });
+        this.register.registerMetric(this.responseCacheMaxSize);
+
+        // Spots cache capacity
+        this.spotsCacheMaxSize = new promClient.Gauge({
+            name: 'dxcluster_spots_cache_max_size',
+            help: 'Maximum size of spots cache'
+        });
+        this.register.registerMetric(this.spotsCacheMaxSize);
     }
 
     /**
@@ -136,6 +205,43 @@ class Metrics {
             Object.entries(bandCounts).forEach(([band, count]) => {
                 this.spotsByBand.labels(band).set(count);
             });
+        }
+
+        // Update spots by source
+        if (this.getSourceStats) {
+            const sourceStats = this.getSourceStats();
+            this.spotsBySource.reset();
+            Object.entries(sourceStats).forEach(([source, count]) => {
+                this.spotsBySource.labels(source).set(count);
+            });
+        }
+
+        // Update spots by mode type
+        if (this.getModeTypeStats) {
+            const modeStats = this.getModeTypeStats();
+            this.spotsByModeType.reset();
+            Object.entries(modeStats).forEach(([mode, count]) => {
+                this.spotsByModeType.labels(mode).set(count);
+            });
+        }
+
+        // Update DXCC cache metrics
+        if (this.getDxccCacheStats) {
+            const dxccStats = this.getDxccCacheStats();
+            this.dxccCacheSize.set(dxccStats.size || 0);
+            this.dxccCacheMaxSize.set(dxccStats.maxSize || 0);
+            this.dxccCacheFailedEntries.set(dxccStats.failedEntries || 0);
+            this.dxccCacheHitRatio.set(dxccStats.hitRatio || 0);
+            if (dxccStats.spotsMaxSize) {
+                this.spotsCacheMaxSize.set(dxccStats.spotsMaxSize);
+            }
+        }
+
+        // Update response cache metrics
+        if (this.getResponseCacheStats) {
+            const responseStats = this.getResponseCacheStats();
+            this.responseCacheSize.set(responseStats.size || 0);
+            this.responseCacheMaxSize.set(responseStats.maxSize || 0);
         }
 
         // Update WebSocket connections

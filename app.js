@@ -412,11 +412,42 @@ console.log('[RateLimiter] Rate limiter initialized - General: 120/min, Data: 60
 // ================================================================
 // Metrics Module
 // ================================================================
+// DXCC cache hit tracking for metrics
+let dxccCacheHits = 0;
+let dxccCacheMisses = 0;
+
 const metrics = new Metrics({
     enabled: true,
     getSpotsData: () => spots,
     getClusterStatus: () => clusterManager.getStatus(),
-    getWebSocketClients: () => wss ? wss.clients.size : 0
+    getWebSocketClients: () => wsClients ? wsClients.size : 0,
+    getDxccCacheStats: () => {
+        // Count failed entries in DXCC cache
+        let failedCount = 0;
+        for (const [, entry] of dxccCache.entries()) {
+            if (entry.failed) failedCount++;
+        }
+        const totalLookups = dxccCacheHits + dxccCacheMisses;
+        return {
+            size: dxccCache.size,
+            maxSize: DXCC_CACHE_MAX_SIZE,
+            failedEntries: failedCount,
+            hitRatio: totalLookups > 0 ? dxccCacheHits / totalLookups : 0,
+            spotsMaxSize: config.maxcache
+        };
+    },
+    getResponseCacheStats: () => ({
+        size: responseCache.size,
+        maxSize: RESPONSE_CACHE_MAX_SIZE
+    }),
+    getModeTypeStats: () => ({ ...modeTypeStats }),
+    getSourceStats: () => {
+        const stats = {};
+        for (const [source, spotSet] of sourceIndex.entries()) {
+            stats[source] = spotSet.size;
+        }
+        return stats;
+    }
 });
 
 // Apply metrics tracking middleware
@@ -2257,6 +2288,7 @@ async function dxcc_lookup(call) {
                 cached.timestamp = Date.now();
             }
             dxccCache.set(normalizedCall, cached);
+            dxccCacheHits++;  // Track cache hit for metrics
             // Return a shallow copy to prevent cache pollution from POTA/SOTA/enrichment data
             return { ...cached.data };
         } else {
@@ -2264,6 +2296,9 @@ async function dxcc_lookup(call) {
             dxccCache.delete(normalizedCall);
         }
     }
+    
+    // Cache miss - will perform lookup
+    dxccCacheMisses++;
     
     // 2. Check if lookup is already in progress for this callsign
     if (pendingDxccLookups.has(normalizedCall)) {
