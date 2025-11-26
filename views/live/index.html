@@ -1122,6 +1122,7 @@
             </div>
             <div class="modal-footer">
                 <span id="dxccLookupInfo" style="font-size: 12px; color: #666; margin-right: auto;"></span>
+                <button class="modal-btn" onclick="clearDxccCache()" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: white; margin-right: 10px;" title="Remove this callsign from server cache">🗑️ Clear from Cache</button>
                 <button class="modal-btn close" onclick="closeDxccLookupModal()">Close</button>
             </div>
         </div>
@@ -2206,6 +2207,42 @@
                     }
                     return '<span style="' + cls + '">' + match + '</span>';
                 });
+        }
+
+        async function clearDxccCache() {
+            const input = document.getElementById('dxccCallsignInput');
+            const result = document.getElementById('dxccLookupResult');
+            const info = document.getElementById('dxccLookupInfo');
+            
+            const callsign = input.value.trim().toUpperCase();
+            
+            if (!callsign) {
+                result.innerHTML = '<p style="text-align: center; color: #dcdcaa;">Please enter a callsign first</p>';
+                return;
+            }
+            
+            result.innerHTML = '<p style="text-align: center; color: #888;">Clearing cache for ' + escapeHtml(callsign) + '...</p>';
+            
+            try {
+                const response = await fetch(apiUrl('/api/v2/dxcc/' + encodeURIComponent(callsign) + '/cache'), {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                result.innerHTML = `<p style="color: #4ec9b0;">✅ ${escapeHtml(data.message || 'Cache cleared')}</p>
+<p style="color: #888; margin-top: 10px;">Click "Lookup" to perform a fresh lookup from the Wavelog API.</p>`;
+                info.textContent = 'Cache entry removed';
+                
+            } catch (error) {
+                console.error('Clear cache error:', error);
+                result.innerHTML = `<p style="color: #f48771;">❌ Failed to clear cache: ${escapeHtml(error.message)}</p>`;
+            }
         }
 
         async function showAnalytics() {

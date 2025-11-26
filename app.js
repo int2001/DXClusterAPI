@@ -559,6 +559,44 @@ app.get(config.baseUrl + '/api/v2/dxcc/:callsign', async (req, res) => {
     }
 });
 
+/**
+ * DELETE /api/v2/dxcc/:callsign/cache - Remove a callsign from the DXCC cache
+ * This allows forcing a fresh lookup from the Wavelog API
+ */
+app.delete(config.baseUrl + '/api/v2/dxcc/:callsign/cache', (req, res) => {
+    const callsign = req.params.callsign?.toUpperCase().trim();
+    
+    if (!callsign) {
+        return res.status(400).json({
+            status: 'error',
+            error: 'Callsign is required',
+            data: null
+        });
+    }
+    
+    const normalizedCall = normalizeCallsign(callsign);
+    
+    // Check if entry exists in cache
+    const existed = dxccCache.has(normalizedCall);
+    
+    if (existed) {
+        dxccCache.delete(normalizedCall);
+        console.log(`[DXCC Debug] Cache entry removed for: ${callsign} (normalized: ${normalizedCall})`);
+    }
+    
+    res.json({
+        status: 'success',
+        message: existed 
+            ? `Cache entry for ${callsign} has been removed` 
+            : `No cache entry found for ${callsign} (nothing to remove)`,
+        data: {
+            callsign: callsign,
+            normalizedCallsign: normalizedCall,
+            wasInCache: existed
+        }
+    });
+});
+
 // ================================================================
 // Routes
 // ================================================================
