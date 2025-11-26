@@ -17,6 +17,8 @@
     
     <!-- Twemoji for proper emoji/flag display -->
     <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
+    <!-- Socket.IO client library (embedded) -->
+    <script src="/js/socket.io.min.js"></script>
     
     <style>
         * {
@@ -1110,20 +1112,104 @@
             return baseUrl + endpoint;
         };
 
-        let ws;
+        // Get Socket.IO server URL (just origin + port, no path)
+        const getSocketIoUrl = () => {
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            // For Socket.IO, we need just origin, not full path
+            return `${protocol}//${host}`;
+        };
+
+        const socketIoUrl = getSocketIoUrl();
+        console.log('Socket.IO server URL:', socketIoUrl);
+
+        let socket;
+        let usePolling = false;
+        let pollingInterval;
+        let connectionAttempts = 0;
+        const maxWsAttempts = 3;
         let displayedSpots = new Set(); // Track unique spots by frequency
         let spotsInLastMinute = [];
         const maxDisplaySpots = 200;
-        let usePolling = false;
-        let pollingInterval;
-        let wsConnectionAttempts = 0;
-        const maxWsAttempts = 3;
         let connectionHealthy = true;
         let lastSuccessfulPoll = Date.now();
 
         function connectWebSocket() {
-            // After 3 failed attempts, switch to polling
-            if (wsConnectionAttempts >= maxWsAttempts) {
+            // Try Socket.IO first, fallback to WebSocket if Socket.IO library not available
+            if (typeof io !== 'undefined') {
+                try {
+                    console.log('Attempting Socket.IO connection...');
+                    socket = io(socketIoUrl, {
+                        transports: ['websocket', 'polling'],  // WebSocket first, fallback to polling
+                        timeout: 20000,  // 20 second connection timeout
+                        reconnection: true,           // Enable automatic reconnection
+                        reconnectionAttempts: 10,     // Max reconnection attempts
+                        reconnectionDelay: 1000,     // Start with 1 second delay
+                        maxReconnectionAttempts: 10   // Max reconnection attempts before giving up
+                    });
+
+                    // Socket.IO event handlers
+                    socket.on('connect', async () => {
+                        console.log('Socket.IO connected successfully');
+                        connectionAttempts = 0;
+                        usePolling = false;
+                        if (pollingInterval) {
+                            clearInterval(pollingInterval);
+                            pollingInterval = null;
+                        }
+                        updateStatus(true, 'Socket.IO');
+
+                        // Fetch initial spots to populate the table
+                        try {
+                            const response = await fetch(apiUrl('/spots'));
+                            if (response.ok) {
+                                const spots = await response.json();
+                                console.log(`Loaded ${spots.length} initial spots from server`);
+
+                                // Add all spots to the display
+                                spots.forEach(spot => addSpot(spot));
+                            }
+                        } catch (error) {
+                            console.error('Failed to load initial spots:', error);
+                        }
+                    });
+
+                    socket.on('spot', (message) => {
+                        addSpot(message.data);
+                    });
+
+                    socket.on('connected', (data) => {
+                        console.log('Server confirmed Socket.IO connection:', data.message);
+                    });
+
+                    socket.on('disconnect', (reason) => {
+                        console.log('Socket.IO disconnected. Reason:', reason);
+                        updateStatus(false);
+                        connectionAttempts++;
+
+                        // Socket.IO will automatically reconnect unless max attempts reached
+                        if (connectionAttempts >= 10) {
+                            console.log('Max Socket.IO attempts reached, switching to polling');
+                            startPolling();
+                        }
+                    });
+
+                    socket.on('connect_error', (error) => {
+                        console.error('Socket.IO connection error:', error);
+                        connectionAttempts++;
+                        updateStatus(false);
+                    });
+
+                    return; // Socket.IO setup complete
+
+                } catch (error) {
+                    console.error('Failed to initialize Socket.IO:', error);
+                    // Fallback to WebSocket if Socket.IO fails
+                }
+            }
+
+            // Fallback: Original WebSocket implementation
+            if (connectionAttempts >= maxWsAttempts) {
                 console.log('WebSocket unavailable, switching to polling mode');
                 startPolling();
                 return;
@@ -1131,22 +1217,25 @@
 
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}${apiUrl('/ws')}`;
-            
-            console.log('Attempting WebSocket connection to:', wsUrl);
-            ws = new WebSocket(wsUrl);
 
-            ws.onopen = () => {
+            console.log('Attempting WebSocket fallback connection to:', wsUrl);
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
                 console.log('WebSocket connected successfully');
-                wsConnectionAttempts = 0;
+                connectionAttempts = 0;
                 usePolling = false;
                 if (pollingInterval) {
                     clearInterval(pollingInterval);
                     pollingInterval = null;
                 }
                 updateStatus(true, 'WebSocket');
+
+                // Fetch initial spots to populate table
+                fetchInitialSpots();
             };
 
-            ws.onmessage = (event) => {
+            socket.onmessage = (event) => {
                 try {
                     const message = JSON.parse(event.data);
                     if (message.type === 'spot') {
@@ -1159,23 +1248,23 @@
                 }
             };
 
-            ws.onerror = (error) => {
+            socket.onerror = (error) => {
                 console.error('WebSocket error:', error);
-                wsConnectionAttempts++;
+                connectionAttempts++;
                 updateStatus(false);
             };
 
-            ws.onclose = (event) => {
+            socket.onclose = (event) => {
                 console.log('WebSocket disconnected. Code:', event.code, 'Reason:', event.reason);
                 updateStatus(false);
-                
+
                 // Don't increment on clean close (1000) or going away (1001)
                 if (event.code !== 1000 && event.code !== 1001) {
-                    wsConnectionAttempts++;
+                    connectionAttempts++;
                 }
-                
+
                 // Attempt to reconnect after 3 seconds if not at max attempts
-                if (wsConnectionAttempts < maxWsAttempts) {
+                if (connectionAttempts < maxWsAttempts) {
                     setTimeout(connectWebSocket, 3000);
                 } else {
                     console.log('Max WebSocket attempts reached, switching to polling');
@@ -2202,6 +2291,29 @@
                 
             } catch (error) {
                 console.error('Health check error:', error);
+            }
+        }
+
+        // Fetch initial spots to populate table when WebSocket connects
+        async function fetchInitialSpots() {
+            try {
+                const response = await fetch(apiUrl('/spots'));
+                if (response.ok) {
+                    const spots = await response.json();
+                    console.log(`Loaded ${spots.length} initial spots from server`);
+
+                    // Clear any existing "no data" message
+                    const table = document.getElementById('spotsTable');
+                    const noDataRow = table.querySelector('.no-data');
+                    if (noDataRow) {
+                        noDataRow.remove();
+                    }
+
+                    // Add all spots to display
+                    spots.forEach(spot => addSpot(spot));
+                }
+            } catch (error) {
+                console.error('Failed to load initial spots:', error);
             }
         }
 

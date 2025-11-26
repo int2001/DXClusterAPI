@@ -22,6 +22,7 @@ const path = require("path");
 const cors = require('cors');
 const morgan = require('morgan');
 const WebSocket = require('ws');
+const { Server } = require("socket.io");
 const fs = require('fs');
 const os = require('os');
 
@@ -52,6 +53,7 @@ let rbnSpotCount = 0;  // Track RBN spots for early exit in cleanup
 // WebSocket and Cluster Manager (initialized later)
 const wsClients = new Set();
 let wss = null;  // Will be initialized in startWebSocket()
+let io = null;  // Will be initialized in startWebSocket()
 let clusterManager = null;  // Will be initialized after config is loaded
 
 // ================================================================
@@ -327,6 +329,11 @@ const morganStream = logStream ? {
 
 app.disable('x-powered-by');
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+// Also serve static files under BASEURL
+if (config.baseUrl) {
+    app.use(config.baseUrl, express.static(path.join(__dirname, 'public')));
+}
 
 // Trust proxy - required when behind reverse proxy (Passenger, nginx, etc.)
 // This allows express-rate-limit to correctly identify users via X-Forwarded-For header
@@ -551,8 +558,14 @@ if (config.livePageEnabled) {
         res.setHeader('Expires', '0');
         res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet');
         
-        // Send the HTML file
-        res.sendFile(livePagePath);
+        // Read HTML file and inject BASEURL for Socket.IO library
+        let htmlContent = fs.readFileSync(livePagePath, 'utf8');
+        // Replace hardcoded Socket.IO path with BASEURL-prefixed path
+        htmlContent = htmlContent.replace(
+            'src="/js/socket.io.min.js"',
+            `src="${config.baseUrl}/js/socket.io.min.js"`
+        );
+        res.send(htmlContent);
     });
     
     console.log('[Core] Live page enabled at ' + config.baseUrl + '/live' + 
@@ -571,38 +584,20 @@ app.get(config.baseUrl + '/analytics', (req, res) => {
 // -----------------------------------
 
 /**
- * Broadcasts a new spot to all connected WebSocket clients
+ * Broadcasts a new spot to all connected Socket.IO clients
  */
 function broadcastSpot(spot) {
     if (wsClients.size === 0) return;
 
-    const message = JSON.stringify({
+    const message = {
         type: 'spot',
-        data: spot
-    });
+        data: spot,
+        timestamp: new Date().toISOString()
+    };
 
-    // Single-pass cleanup: remove dead clients immediately
-    let deadCount = 0;
-    for (const client of wsClients) {
-        if (client.readyState === WebSocket.OPEN) {
-            try {
-                client.send(message);
-            } catch (error) {
-                console.error('[Core] Error sending to WebSocket client:', error);
-                wsClients.delete(client);
-                deadCount++;
-            }
-        } else if (client.readyState === WebSocket.CLOSED || client.readyState === WebSocket.CLOSING) {
-            // Remove dead client immediately
-            wsClients.delete(client);
-            deadCount++;
-        }
-    }
-    
-    // Log cleanup if any dead clients were found
-    if (deadCount > 0) {
-        console.log(`[Core] Cleaned up ${deadCount} dead WebSocket clients. Active: ${wsClients.size}`);
-    }
+    // Broadcast to all connected Socket.IO clients
+    io.emit('spot', message);
+    console.log(`[Core] Broadcasted spot to ${wsClients.size} Socket.IO clients`);
 }
 
 // Hook up cluster spot events to handlespot function
@@ -784,7 +779,7 @@ app.get(config.baseUrl + '/logs', (req, res) => {
 // -----------------------------------
 
 /**
- * Initializes WebSocket server on an existing HTTP server
+ * Initializes Socket.IO server on an existing HTTP server
  */
 function initializeWebSocket(server) {
     if (!config.websocketEnabled) {
@@ -792,74 +787,48 @@ function initializeWebSocket(server) {
         return null;
     }
 
-    wss = new WebSocket.Server({ 
-        server,
-        path: '/ws'  // Explicit WebSocket path
+    // Initialize Socket.IO with CORS enabled and proper configuration
+    io = new Server(server, {
+        cors: {
+            origin: "*",
+            methods: ["GET", "POST"]
+        },
+        transports: ['websocket', 'polling'],  // Fallback to polling
+        pingTimeout: 60000,  // 60 seconds ping timeout
+        pingInterval: 25000   // 25 seconds ping interval
     });
 
-    wss.on('connection', (ws, req) => {
-        wsClients.add(ws);
-        console.log(`[Core] WebSocket client connected from ${req.socket.remoteAddress}. Total clients: ${wsClients.size}`);
+    io.on('connection', (socket) => {
+        wsClients.add(socket);
+        console.log(`[Core] Socket.IO client connected from ${socket.handshake.address}. Total clients: ${wsClients.size}`);
 
         // Send initial connection confirmation
-        ws.send(JSON.stringify({ type: 'connected', message: 'WebSocket connected' }));
+        socket.emit('connected', { message: 'Socket.IO connected', type: 'socketio' });
 
-        ws.on('close', () => {
-            wsClients.delete(ws);
-            console.log(`[Core] WebSocket client disconnected. Total clients: ${wsClients.size}`);
+        // Handle disconnection
+        socket.on('disconnect', (reason) => {
+            wsClients.delete(socket);
+            console.log(`[Core] Socket.IO client disconnected (${reason}). Total clients: ${wsClients.size}`);
         });
 
-        ws.on('error', (error) => {
-            console.error('[Core] WebSocket client error:', error.message);
-            wsClients.delete(ws);
+        // Handle errors
+        socket.on('error', (error) => {
+            console.error('[Core] Socket.IO client error:', error);
+            wsClients.delete(socket);
         });
-        
-        // Add ping/pong for connection health monitoring
-        ws.isAlive = true;
-        ws.on('pong', () => {
-            ws.isAlive = true;
+
+        // Optional: Handle custom events for debugging
+        socket.on('ping', () => {
+            socket.emit('pong', { timestamp: Date.now() });
         });
     });
 
-    wss.on('error', (error) => {
-        console.error('[Core] WebSocket server error:', error.message);
+    io.on('error', (error) => {
+        console.error('[Core] Socket.IO server error:', error);
     });
-    
-    // Periodic ping to detect dead connections (every 30 seconds)
-    const pingInterval = setInterval(() => {
-        let deadCount = 0;
-        
-        // Single-pass cleanup: terminate and remove dead clients immediately
-        for (const ws of wsClients) {
-            if (ws.isAlive === false) {
-                // Connection is dead, terminate and remove it
-                ws.terminate();
-                wsClients.delete(ws);
-                deadCount++;
-                continue;
-            }
-            
-            // Mark as not alive, will be set to true on pong response
-            ws.isAlive = false;
-            try {
-                ws.ping();
-            } catch (e) {
-                wsClients.delete(ws);
-                deadCount++;
-            }
-        }
-        
-        // Log cleanup if any dead clients were found
-        if (deadCount > 0) {
-            console.log(`[Core] Ping/pong cleanup: removed ${deadCount} dead clients. Active: ${wsClients.size}`);
-        }
-    }, 30000);
-    
-    // Store interval so we can clear it on shutdown
-    wss.pingInterval = pingInterval;
 
-    console.log(`[Core] WebSocket server initialized on path /ws`);
-    return wss;
+    console.log(`[Core] Socket.IO server initialized with WebSocket + polling fallback`);
+    return io;
 }
 
 /**
