@@ -788,7 +788,10 @@ function initializeWebSocket(server) {
     }
 
     // Initialize Socket.IO with CORS enabled and proper configuration
+    // Set the Socket.IO path to respect BASEURL setting
+    const socketIoPath = config.baseUrl ? `${config.baseUrl}/socket.io` : '/socket.io';
     io = new Server(server, {
+        path: socketIoPath,
         cors: {
             origin: "*",
             methods: ["GET", "POST"]
@@ -827,7 +830,7 @@ function initializeWebSocket(server) {
         console.error('[Core] Socket.IO server error:', error);
     });
 
-    console.log(`[Core] Socket.IO server initialized with WebSocket + polling fallback`);
+    console.log(`[Core] Socket.IO server initialized with WebSocket + polling fallback at path: ${socketIoPath}`);
     return io;
 }
 
