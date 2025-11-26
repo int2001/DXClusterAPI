@@ -20,6 +20,13 @@ module.exports = class SOTASpots extends events.EventEmitter {
     this.sotaspotcache = new Map(); // Changed to Map for O(1) lookups: key = spotted_freq_mode
     this.MAX_CACHE_SIZE = 500; // Limit cache size to prevent unbounded growth
     this.apiUrl = "https://api2.sota.org.uk/api/spots/25/all";
+    
+    // Exponential backoff settings for API failures
+    this.INITIAL_BACKOFF = 5000;        // 5 seconds
+    this.MAX_BACKOFF = 300000;          // 5 minutes max
+    this.BACKOFF_FACTOR = 2;
+    this.currentBackoff = 0;            // 0 = no backoff active
+    this.consecutiveErrors = 0;
   }
 
   /**
@@ -27,8 +34,11 @@ module.exports = class SOTASpots extends events.EventEmitter {
    */
   async run(opts = {}) {
     while (true) {
-      // wait between polls
-      await sleepNow(this.sotapollinterval * 1000);
+      // wait between polls (or backoff if in error state)
+      const waitTime = this.currentBackoff > 0 
+          ? this.currentBackoff 
+          : this.sotapollinterval * 1000;
+      await sleepNow(waitTime);
 
       try {
         // 10s timeout with AbortController
@@ -135,8 +145,26 @@ module.exports = class SOTASpots extends events.EventEmitter {
             removed++;
           }
         }
+        
+        // Success - reset backoff
+        if (this.consecutiveErrors > 0) {
+          console.log(`[SOTA] API recovered after ${this.consecutiveErrors} consecutive errors`);
+        }
+        this.consecutiveErrors = 0;
+        this.currentBackoff = 0;
+        
       } catch (err) {
-        console.error('[SOTA] Fetch failed:', err && err.stack ? err.stack : err);
+        // Increment error count and calculate backoff
+        this.consecutiveErrors++;
+        
+        if (this.currentBackoff === 0) {
+          this.currentBackoff = this.INITIAL_BACKOFF;
+        } else {
+          this.currentBackoff = Math.min(this.currentBackoff * this.BACKOFF_FACTOR, this.MAX_BACKOFF);
+        }
+        
+        const nextRetrySeconds = Math.round(this.currentBackoff / 1000);
+        console.error(`[SOTA] Fetch failed (attempt ${this.consecutiveErrors}, retry in ${nextRetrySeconds}s): ${err.message || err}`);
       }
     }
   }

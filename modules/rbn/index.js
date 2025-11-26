@@ -21,6 +21,13 @@ class RBNManager extends EventEmitter {
         this.spotTimeout = options.spotTimeout || 5 * 60 * 1000; // 5 minutes default
         this.MAX_SPOTS = 2000; // Maximum number of unique callsigns to track
         
+        // Exponential backoff settings for reconnections
+        this.INITIAL_RECONNECT_DELAY = 5000;       // 5 seconds initial
+        this.MAX_RECONNECT_DELAY = 3600000;        // 1 hour max
+        this.RECONNECT_BACKOFF_FACTOR = 2;         // Double delay each time
+        this.reconnectDelays = new Map();          // Track delays per cluster
+        this.reconnectTimers = new Map();          // Track active reconnect timers
+        
         // Feed enable/disable flags
         this.cwRttyEnabled = options.cwRttyEnabled !== false; // default true
         this.ft8Enabled = options.ft8Enabled === true; // default false
@@ -79,9 +86,17 @@ class RBNManager extends EventEmitter {
     }
 
     /**
-     * Connect to a single RBN cluster
+     * Connect to a single RBN cluster with exponential backoff on failures
      */
     async connectToCluster(config) {
+        const clusterKey = config.cluster;
+        
+        // Cancel any pending reconnect timer for this cluster
+        if (this.reconnectTimers.has(clusterKey)) {
+            clearTimeout(this.reconnectTimers.get(clusterKey));
+            this.reconnectTimers.delete(clusterKey);
+        }
+        
         try {
             console.log(`[RBN] Connecting to ${config.cluster} (${config.host}:${config.port})...`);
             
@@ -89,6 +104,9 @@ class RBNManager extends EventEmitter {
                 call: config.call,
                 ct: '\r\n'
             });
+            
+            // Track if connection was established (for backoff reset)
+            let wasConnected = false;
 
             cluster.on('spot', (spot) => {
                 this.handleSpot(spot, config.cluster);
@@ -102,8 +120,12 @@ class RBNManager extends EventEmitter {
             });
 
             cluster.on('close', () => {
-                console.log(`[RBN] ${config.cluster} connection closed. Attempting reconnect in 30s...`);
-                setTimeout(() => this.connectToCluster(config), 30000);
+                console.log(`[RBN] ${config.cluster} connection closed.`);
+                // Connection lost - reset to quick retry
+                if (wasConnected) {
+                    this.reconnectDelays.set(clusterKey, this.INITIAL_RECONNECT_DELAY);
+                }
+                this._scheduleReconnect(config);
             });
 
             cluster.on('error', (err) => {
@@ -117,6 +139,8 @@ class RBNManager extends EventEmitter {
                 password: config.password,
                 loginPrompt: config.loginPrompt
             });
+            
+            wasConnected = true;
 
             this.connections.push({
                 cluster: cluster,
@@ -124,12 +148,49 @@ class RBNManager extends EventEmitter {
             });
 
             console.log(`[RBN] ${config.cluster} connected successfully`);
+            
+            // Reset reconnect delay on successful connection
+            this.reconnectDelays.delete(clusterKey);
 
         } catch (error) {
             console.error(`[RBN] Failed to connect to ${config.cluster}:`, error.message);
-            // Retry connection after 30 seconds
-            setTimeout(() => this.connectToCluster(config), 30000);
+            this._scheduleReconnect(config);
         }
+    }
+    
+    /**
+     * Schedule a reconnection attempt with exponential backoff
+     * @private
+     */
+    _scheduleReconnect(config) {
+        const clusterKey = config.cluster;
+        
+        // Cancel any existing timer
+        if (this.reconnectTimers.has(clusterKey)) {
+            clearTimeout(this.reconnectTimers.get(clusterKey));
+        }
+        
+        // Get current delay or start with initial delay
+        let currentDelay = this.reconnectDelays.get(clusterKey) || this.INITIAL_RECONNECT_DELAY;
+        
+        // Format delay for logging
+        const delaySeconds = Math.round(currentDelay / 1000);
+        const delayFormatted = delaySeconds >= 60 
+            ? `${Math.round(delaySeconds / 60)}m` 
+            : `${delaySeconds}s`;
+        
+        console.log(`[RBN] Reconnecting to ${config.cluster} in ${delayFormatted}...`);
+        
+        const timerId = setTimeout(() => {
+            this.reconnectTimers.delete(clusterKey);
+            this.connectToCluster(config);
+        }, currentDelay);
+        
+        this.reconnectTimers.set(clusterKey, timerId);
+        
+        // Increase delay for next attempt (exponential backoff with max cap)
+        const nextDelay = Math.min(currentDelay * this.RECONNECT_BACKOFF_FACTOR, this.MAX_RECONNECT_DELAY);
+        this.reconnectDelays.set(clusterKey, nextDelay);
     }
 
     /**
@@ -361,6 +422,15 @@ class RBNManager extends EventEmitter {
     stop() {
         console.log('[RBN] Stopping all RBN connections...');
         
+        // Cancel all pending reconnect timers
+        this.reconnectTimers.forEach((timerId, clusterKey) => {
+            clearTimeout(timerId);
+            console.log(`[RBN] Cancelled reconnect timer for ${clusterKey}`);
+        });
+        this.reconnectTimers.clear();
+        this.reconnectDelays.clear();
+        
+        // Close all active connections
         for (const conn of this.connections) {
             try {
                 conn.cluster.close();

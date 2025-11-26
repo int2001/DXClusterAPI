@@ -16,14 +16,24 @@ module.exports = class POTASpots extends events.EventEmitter {
     this.potapollinterval = Math.max(30, (opts.potapollinterval || 120)); // Default to 120 seconds, 30 seconds minimum
     this.potaspotcache = new Map(); // Changed to Map for O(1) lookups: key = spotted_freq_mode
     this.MAX_CACHE_SIZE = 500; // Limit cache size to prevent unbounded growth
+    
+    // Exponential backoff settings for API failures
+    this.INITIAL_BACKOFF = 5000;        // 5 seconds
+    this.MAX_BACKOFF = 300000;          // 5 minutes max
+    this.BACKOFF_FACTOR = 2;
+    this.currentBackoff = 0;            // 0 = no backoff active
+    this.consecutiveErrors = 0;
   }
 
   //continuously poll POTA API, determine new spots and emit those to event listeners
   async run(opts = {}) {
 	  while (true) {
 
-		  //Wait for the polling interval
-		  await sleepNow(this.potapollinterval * 1000);
+		  //Wait for the polling interval (or backoff if in error state)
+		  const waitTime = this.currentBackoff > 0 
+		      ? this.currentBackoff 
+		      : this.potapollinterval * 1000;
+		  await sleepNow(waitTime);
 
 		  //cache variable
 		  const currentSpots = new Map();
@@ -127,10 +137,27 @@ module.exports = class POTASpots extends events.EventEmitter {
 					  removed++;
 				  }
 			  }
+			  
+			  // Success - reset backoff
+			  if (this.consecutiveErrors > 0) {
+				  console.log(`[POTA] API recovered after ${this.consecutiveErrors} consecutive errors`);
+			  }
+			  this.consecutiveErrors = 0;
+			  this.currentBackoff = 0;
 
 		  } catch (error) {
-			  //log error to console
-			  console.error('[POTA] Fetch failed:', error);
+			  //log error to console with backoff info
+			  this.consecutiveErrors++;
+			  
+			  // Calculate next backoff
+			  if (this.currentBackoff === 0) {
+				  this.currentBackoff = this.INITIAL_BACKOFF;
+			  } else {
+				  this.currentBackoff = Math.min(this.currentBackoff * this.BACKOFF_FACTOR, this.MAX_BACKOFF);
+			  }
+			  
+			  const nextRetrySeconds = Math.round(this.currentBackoff / 1000);
+			  console.error(`[POTA] Fetch failed (attempt ${this.consecutiveErrors}, retry in ${nextRetrySeconds}s): ${error.message || error}`);
 		  }
 	  }
   }

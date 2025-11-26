@@ -6,11 +6,17 @@
  */
 
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
+
+// Track consecutive save errors for exponential backoff logging
+let consecutiveSaveErrors = 0;
+const MAX_SAVE_ERROR_LOG_INTERVAL = 10; // Only log every 10th error after first
 
 /**
  * Save spots cache to disk
  * Uses atomic write (temp file + rename) to prevent corruption
+ * Handles disk full, permission errors, and other I/O issues gracefully
  * 
  * @param {Array} spots - Array of spot objects to save
  * @param {string} filePath - Path to cache file
@@ -20,6 +26,17 @@ const path = require('path');
 async function saveCache(spots, filePath, dxccCache = null) {
     try {
         const startTime = Date.now();
+        
+        // Ensure directory exists
+        const dataDir = path.dirname(filePath);
+        try {
+            await fs.mkdir(dataDir, { recursive: true });
+        } catch (mkdirErr) {
+            // Ignore if directory already exists
+            if (mkdirErr.code !== 'EEXIST') {
+                throw mkdirErr;
+            }
+        }
         
         // Prepare cache data with metadata
         const cacheData = {
@@ -48,6 +65,12 @@ async function saveCache(spots, filePath, dxccCache = null) {
         const duration = Date.now() - startTime;
         const fileSize = Buffer.byteLength(jsonData, 'utf8');
         
+        // Reset error counter on success
+        if (consecutiveSaveErrors > 0) {
+            console.log(`[Persistence] Save recovered after ${consecutiveSaveErrors} consecutive errors`);
+            consecutiveSaveErrors = 0;
+        }
+        
         return {
             success: true,
             spotCount: spots.length,
@@ -58,7 +81,36 @@ async function saveCache(spots, filePath, dxccCache = null) {
         };
         
     } catch (error) {
-        console.error('[Persistence] Failed to save cache:', error.message);
+        consecutiveSaveErrors++;
+        
+        // Classify error type for better diagnostics
+        let errorType = 'unknown';
+        let errorAdvice = '';
+        
+        if (error.code === 'ENOSPC') {
+            errorType = 'disk_full';
+            errorAdvice = 'Free up disk space to resume persistence';
+        } else if (error.code === 'EACCES' || error.code === 'EPERM') {
+            errorType = 'permission_denied';
+            errorAdvice = 'Check file/directory permissions for the data folder';
+        } else if (error.code === 'EROFS') {
+            errorType = 'readonly_filesystem';
+            errorAdvice = 'Filesystem is read-only, cannot save cache';
+        } else if (error.code === 'EIO') {
+            errorType = 'io_error';
+            errorAdvice = 'Disk I/O error - check disk health';
+        } else if (error.code === 'ENOENT') {
+            errorType = 'path_not_found';
+            errorAdvice = 'Parent directory does not exist';
+        }
+        
+        // Log based on error frequency (avoid log spam)
+        if (consecutiveSaveErrors === 1 || consecutiveSaveErrors % MAX_SAVE_ERROR_LOG_INTERVAL === 0) {
+            console.error(`[Persistence] Save failed (${errorType}, attempt ${consecutiveSaveErrors}): ${error.message}`);
+            if (errorAdvice) {
+                console.error(`[Persistence] Advice: ${errorAdvice}`);
+            }
+        }
         return {
             success: false,
             error: error.message
@@ -167,7 +219,22 @@ async function loadCache(filePath, spotMaxAge, dxccCacheTTL = 7 * 24 * 60 * 60 *
         };
         
     } catch (error) {
-        console.error('[Persistence] Failed to load cache:', error.message);
+        // Classify error type for better diagnostics
+        let errorType = 'unknown';
+        
+        if (error instanceof SyntaxError) {
+            errorType = 'corrupted_json';
+            console.error('[Persistence] Cache file is corrupted (invalid JSON), starting fresh');
+        } else if (error.code === 'EACCES' || error.code === 'EPERM') {
+            errorType = 'permission_denied';
+            console.error('[Persistence] Cannot read cache file - permission denied');
+        } else if (error.code === 'EIO') {
+            errorType = 'io_error';
+            console.error('[Persistence] Disk I/O error reading cache file');
+        } else {
+            console.error(`[Persistence] Failed to load cache: ${error.message}`);
+        }
+        
         return {
             success: false,
             spots: [],
@@ -176,7 +243,8 @@ async function loadCache(filePath, spotMaxAge, dxccCacheTTL = 7 * 24 * 60 * 60 *
             dxccExpired: 0,
             loaded: 0,
             expired: 0,
-            error: error.message
+            error: error.message,
+            errorType: errorType
         };
     }
 }
