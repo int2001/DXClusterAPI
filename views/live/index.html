@@ -964,9 +964,9 @@
 
         <div class="footer">
             <div>
-                <strong>DXClusterAPI</strong> v<span id="footerVersion">2.0.0</span> - 
+                <strong>DXClusterAPI</strong> v<span id="footerVersion">2.0.0</span> -
                 <a href="https://github.com/int2001/DXClusterAPI" target="_blank">GitHub Repository</a> |
-                <a href="/info" target="_blank">API Info</a>
+                <a :href="baseUrl + '/info'" target="_blank" id="apiInfoLink">API Info</a>
             </div>
             <div>
                 Made with ❤️ for the Ham Radio community
@@ -1089,6 +1089,27 @@
     </div>
 
     <script>
+        // Detect and store the base URL for API calls
+        // This allows the live page to work when deployed under a subpath
+        const getBaseUrl = () => {
+            // The live page is served from /live, so we need to go up one level to get the API base
+            const path = window.location.pathname;
+            const liveIndex = path.lastIndexOf('/live');
+            if (liveIndex !== -1) {
+                return path.substring(0, liveIndex);
+            }
+            // Fallback: remove /live from the end
+            return path.replace(/\/live$/, '') || '';
+        };
+
+        const baseUrl = getBaseUrl();
+        console.log('Detected base URL:', baseUrl);
+
+        // Helper function to construct API URLs with base URL
+        const apiUrl = (endpoint) => {
+            return baseUrl + endpoint;
+        };
+
         let ws;
         let displayedSpots = new Set(); // Track unique spots by frequency
         let spotsInLastMinute = [];
@@ -1109,7 +1130,7 @@
             }
 
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            const wsUrl = `${protocol}//${window.location.host}${apiUrl('/ws')}`;
             
             console.log('Attempting WebSocket connection to:', wsUrl);
             ws = new WebSocket(wsUrl);
@@ -1175,7 +1196,7 @@
 
         async function pollSpots() {
             try {
-                const response = await fetch('/spots');
+                const response = await fetch(apiUrl('/spots'));
                 if (!response.ok) throw new Error('Poll failed');
                 
                 const spots = await response.json();
@@ -1469,12 +1490,12 @@
         async function showSpotStats() {
             const modal = document.getElementById('spotStatsModal');
             const content = document.getElementById('spotStatsContent');
-            
+
             modal.style.display = 'block';
             content.innerHTML = '<p style="text-align: center; color: #666;">Loading spot statistics...</p>';
-            
+
             try {
-                const response = await fetch('/stats');
+                const response = await fetch(apiUrl('/stats'));
                 if (!response.ok) throw new Error('Failed to fetch stats');
                 
                 const stats = await response.json();
@@ -1520,7 +1541,7 @@
                 
                 // Fetch and display spots by band if API v2 is available
                 try {
-                    const bandsResponse = await fetch('/api/v2/bands');
+                    const bandsResponse = await fetch(apiUrl('/api/v2/bands'));
                     if (bandsResponse.ok) {
                         const bandsData = await bandsResponse.json();
                         
@@ -1702,12 +1723,12 @@
         async function showMemoryDetails() {
             const modal = document.getElementById('memoryModal');
             const content = document.getElementById('memoryContent');
-            
+
             modal.style.display = 'block';
             content.innerHTML = '<p style="text-align: center; color: #666;">Loading memory details...</p>';
-            
+
             try {
-                const response = await fetch('/health');
+                const response = await fetch(apiUrl('/health'));
                 if (!response.ok) throw new Error('Failed to fetch health data');
                 
                 const health = await response.json();
@@ -1892,13 +1913,13 @@
             const modal = document.getElementById('logsModal');
             const content = document.getElementById('logsContent');
             const info = document.getElementById('logsInfo');
-            
+
             modal.style.display = 'block';
             content.innerHTML = '<p style="text-align: center; color: #888;">Loading logs...</p>';
             info.textContent = '';
-            
+
             try {
-                const response = await fetch('/logs');
+                const response = await fetch(apiUrl('/logs'));
                 if (!response.ok) {
                     if (response.status === 503) {
                         throw new Error('File logging is not enabled on the server');
@@ -1961,12 +1982,12 @@
         async function showAnalytics() {
             const modal = document.getElementById('analyticsModal');
             const content = document.getElementById('analyticsContent');
-            
+
             modal.style.display = 'block';
             content.innerHTML = '<p style="text-align: center; color: #666;">Loading analytics...</p>';
-            
+
             try {
-                const response = await fetch('/analytics');
+                const response = await fetch(apiUrl('/analytics'));
                 if (!response.ok) throw new Error('Failed to fetch analytics');
                 
                 const data = await response.json();
@@ -2109,7 +2130,7 @@
 
         async function updateServerHealth() {
             try {
-                const response = await fetch('/health');
+                const response = await fetch(apiUrl('/health'));
                 if (!response.ok) throw new Error('Health check failed');
                 
                 const health = await response.json();
@@ -2194,7 +2215,7 @@
         // Update total spots from cache every 5 seconds
         async function updateTotalSpots() {
             try {
-                const response = await fetch('/stats');
+                const response = await fetch(apiUrl('/stats'));
                 if (response.ok) {
                     const stats = await response.json();
                     document.getElementById('totalSpots').textContent = stats.entries || 0;
@@ -2209,7 +2230,7 @@
         // Update uptime from health endpoint every minute
         async function updateUptime() {
             try {
-                const response = await fetch('/health');
+                const response = await fetch(apiUrl('/health'));
                 if (response.ok) {
                     const health = await response.json();
                     document.getElementById('uptime').textContent = health.uptimeFormatted || '--';
@@ -2242,6 +2263,9 @@
                 }
             }
         }, 5000);
+
+        // Set the API Info link href using the detected base URL
+        document.getElementById('apiInfoLink').href = apiUrl('/info');
     </script>
 </body>
 </html>

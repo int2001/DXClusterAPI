@@ -7,12 +7,12 @@ WORKDIR /usr/src/app
 # this will cache them and speed up future builds
 FROM base AS install
 RUN mkdir -p /temp/dev
-COPY package.json bun.lockb /temp/dev/
+COPY package.json /temp/dev/
 RUN cd /temp/dev && bun install --frozen-lockfile
 
 # install with --production (exclude devDependencies)
 RUN mkdir -p /temp/prod
-COPY package.json bun.lockb /temp/prod/
+COPY package.json /temp/prod/
 RUN cd /temp/prod && bun install --production --frozen-lockfile
 
 # copy node_modules from temp directory
@@ -27,6 +27,7 @@ COPY --from=install /temp/prod/node_modules node_modules
 COPY --from=prerelease /usr/src/app/lib/ ./lib
 COPY --from=prerelease /usr/src/app/modules/ ./modules
 COPY --from=prerelease /usr/src/app/public/ ./public
+COPY --from=prerelease /usr/src/app/views/ ./views
 COPY --from=prerelease /usr/src/app/app.js .
 COPY --from=prerelease /usr/src/app/index.js .
 COPY --from=prerelease /usr/src/app/package.json .
