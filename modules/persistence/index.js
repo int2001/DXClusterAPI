@@ -210,7 +210,10 @@ function startAutoSave(getSpotsFunction, intervalSeconds, filePath, getDxccCache
                 saveCount++;
                 // Log only every 10 saves to reduce noise
                 if (saveCount % 10 === 0) {
-                    console.log(`[Persistence] Auto-save #${saveCount}: ${lastSaveResult.spotCount} spots, ${(lastSaveResult.fileSize / 1024).toFixed(1)}KB, ${lastSaveResult.duration}ms`);
+                    const dxccInfo = lastSaveResult.dxccCacheSize > 0 
+                        ? `, ${lastSaveResult.dxccCacheSize} DXCC entries` 
+                        : '';
+                    console.log(`[Persistence] Auto-save #${saveCount}: ${lastSaveResult.spotCount} spots${dxccInfo}, ${(lastSaveResult.fileSize / 1024).toFixed(1)}KB, ${lastSaveResult.duration}ms`);
                 }
             }
         } catch (error) {

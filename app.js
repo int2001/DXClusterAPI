@@ -1395,7 +1395,8 @@ async function handlespot(spot, spot_source = "cluster") {
 			dxSpot.dxcc_spotted = await dxcc_lookup(spot.spotted);
 		} catch (dxccError) {
 			// If DXCC lookup fails, continue with empty DXCC data
-			console.warn(`[Core] DXCC lookup failed: ${dxccError.message}`);
+			console.warn(`[Core] DXCC lookup failed for spotter: ${spot.spotter}, spotted: ${spot.spotted}, source: ${spot_source}, error: ${dxccError.message}`);
+			addFailedLookup({ ...spot, source: spot_source }, 'Exception during DXCC lookup', `${spot.spotter}/${spot.spotted}`, dxccError.message);
 			dxSpot.dxcc_spotter = {};
 			dxSpot.dxcc_spotted = {};
 		}
@@ -1409,6 +1410,13 @@ async function handlespot(spot, spot_source = "cluster") {
 		const hasValidSpotted = dxSpot.dxcc_spotted && Object.keys(dxSpot.dxcc_spotted).length > 0;
 		
 		if (!hasValidSpotter || !hasValidSpotted) {
+			const failedCallsign = !hasValidSpotter ? spot.spotter : spot.spotted;
+			const reason = !hasValidSpotter && !hasValidSpotted 
+				? 'Both spotter and spotted DXCC lookup returned empty' 
+				: !hasValidSpotter 
+					? 'Spotter DXCC lookup returned empty' 
+					: 'Spotted DXCC lookup returned empty';
+			addFailedLookup({ ...spot, source: spot_source }, reason, failedCallsign);
 			console.warn(`[DXCC Validation] Rejected spot with failed DXCC lookup - spotted: ${spot.spotted} (valid: ${hasValidSpotted}), spotter: ${spot.spotter} (valid: ${hasValidSpotter}), source: ${spot_source}`);
 			return;
 		}
@@ -1788,7 +1796,7 @@ function logStatistics() {
     if (config.analyticsEnabled && analytics) {
         try {
             const analyticsSummary = analytics.getSummary();
-            totalRequests = analyticsSummary.totalRequests || 0;
+            totalRequests = analyticsSummary.summary?.totalRequests || 0;
             
             // Debug: log if analytics seems disabled or has no data
             if (totalRequests === 0 && Object.keys(analyticsSummary.clients || {}).length === 0) {
@@ -1833,6 +1841,73 @@ function formatUptime(seconds) {
 let consecutiveErrorCount = 0;
 const dxccServer = config.dxcc_lookup_wavelog_url;  // The WaveLog server
 let abortController = null;  // For aborting ongoing requests
+
+// Failed DXCC lookup rolling cache (max 100 entries)
+const FAILED_LOOKUPS_FILE = path.join(__dirname, 'data', 'failed_lookups.json');
+const FAILED_LOOKUPS_MAX_SIZE = 100;
+let failedLookupsCache = [];
+
+// Load failed lookups from disk on startup
+try {
+    if (fs.existsSync(FAILED_LOOKUPS_FILE)) {
+        failedLookupsCache = JSON.parse(fs.readFileSync(FAILED_LOOKUPS_FILE, 'utf8'));
+        console.log(`[Core] Loaded ${failedLookupsCache.length} failed lookups from cache`);
+    }
+} catch (err) {
+    console.warn(`[Core] Could not load failed lookups cache: ${err.message}`);
+    failedLookupsCache = [];
+}
+
+/**
+ * Add a failed lookup to the rolling cache and persist to disk
+ * @param {Object} spot - The raw spot data
+ * @param {string} reason - The reason for failure
+ * @param {string} failedCallsign - Which callsign failed (spotter or spotted)
+ * @param {string} [errorMessage] - Optional error message from exception
+ */
+function addFailedLookup(spot, reason, failedCallsign, errorMessage = null) {
+    const entry = {
+        timestamp: new Date().toISOString(),
+        failed_callsign: failedCallsign,
+        reason: reason,
+        lookup_url: dxccServer,
+        raw_spot: {
+            spotter: spot.spotter,
+            spotted: spot.spotted,
+            frequency: spot.frequency,
+            message: spot.message,
+            when: spot.when,
+            source: spot.source || 'unknown'
+        }
+    };
+    
+    // Add error_message if provided (for exception cases)
+    if (errorMessage) {
+        entry.error_message = errorMessage;
+    }
+    
+    // Add to front of array (newest first)
+    failedLookupsCache.unshift(entry);
+    
+    // Trim to max size
+    if (failedLookupsCache.length > FAILED_LOOKUPS_MAX_SIZE) {
+        failedLookupsCache = failedLookupsCache.slice(0, FAILED_LOOKUPS_MAX_SIZE);
+    }
+    
+    // Persist to disk (async to not block)
+    saveFailedLookupsCache();
+}
+
+/**
+ * Save failed lookups cache to disk
+ */
+function saveFailedLookupsCache() {
+    try {
+        fs.writeFileSync(FAILED_LOOKUPS_FILE, JSON.stringify(failedLookupsCache, null, 2), 'utf8');
+    } catch (err) {
+        console.error(`[Core] Failed to save failed lookups cache: ${err.message}`);
+    }
+}
 
 // DXCC cache: Map<callsign, {data, timestamp, accessCount}>
 // Using LRU (Least Recently Used) eviction strategy
