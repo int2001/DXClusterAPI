@@ -317,21 +317,24 @@ function normalizeContestName(indicator) {
  * Check if enrichment is needed for a spot
  * Returns true if the spot already has all enrichment fields populated
  * 
+ * Note: We only check for park reference fields, NOT isContest/contestName
+ * because contest detection is spot-message-specific and should be re-evaluated
+ * for each spot (same callsign may be in contest one time, not another)
+ * 
  * @param {object} dxccSpotted - The dxcc_spotted object
  * @returns {boolean} - True if already enriched, false if needs enrichment
  */
 function isAlreadyEnriched(dxccSpotted) {
     if (!dxccSpotted) return false;
     
-    // Check if all enrichment fields are present (even if empty)
+    // Check if park reference fields are present (even if empty)
     // This indicates the spot has been through enrichment before
+    // Note: isContest is intentionally NOT checked - it should be re-evaluated per spot
     return (
         'sota_ref' in dxccSpotted &&
         'pota_ref' in dxccSpotted &&
         'iota_ref' in dxccSpotted &&
-        'wwff_ref' in dxccSpotted &&
-        'isContest' in dxccSpotted
-        // Note: contestName is optional, not checked
+        'wwff_ref' in dxccSpotted
     );
 }
 
@@ -346,10 +349,12 @@ function applyEnrichment(dxSpot, spot_source = "cluster") {
     // Ensure dxcc_spotted exists
     dxSpot.dxcc_spotted = dxSpot.dxcc_spotted || {};
     
-    // Only enrich if not already enriched (prevents double enrichment)
+    // Always evaluate contest status fresh for each spot
+    // Contest detection is based on the spot's message, not the callsign
+    const enrichedMetadata = enrichSpotMetadata(dxSpot);
+    
+    // Only enrich park references if not already enriched (prevents double enrichment)
     if (!isAlreadyEnriched(dxSpot.dxcc_spotted)) {
-        const enrichedMetadata = enrichSpotMetadata(dxSpot);
-        
         // Only override if not already set by specific modules (POTA/SOTA)
         if (!dxSpot.dxcc_spotted.sota_ref && enrichedMetadata.sota_ref) {
             dxSpot.dxcc_spotted.sota_ref = enrichedMetadata.sota_ref;
@@ -368,17 +373,18 @@ function applyEnrichment(dxSpot, spot_source = "cluster") {
         // Always add these fields (module data doesn't provide them)
         dxSpot.dxcc_spotted.iota_ref = enrichedMetadata.iota_ref || '';
         dxSpot.dxcc_spotted.wwff_ref = enrichedMetadata.wwff_ref || '';
-        dxSpot.dxcc_spotted.isContest = enrichedMetadata.isContest || false;
-        dxSpot.dxcc_spotted.contestName = enrichedMetadata.contestName || '';
     } else {
-        // Already enriched - ensure all fields exist with defaults if missing
+        // Already enriched - ensure park reference fields exist with defaults if missing
         dxSpot.dxcc_spotted.sota_ref = dxSpot.dxcc_spotted.sota_ref || '';
         dxSpot.dxcc_spotted.pota_ref = dxSpot.dxcc_spotted.pota_ref || '';
         dxSpot.dxcc_spotted.iota_ref = dxSpot.dxcc_spotted.iota_ref || '';
         dxSpot.dxcc_spotted.wwff_ref = dxSpot.dxcc_spotted.wwff_ref || '';
-        dxSpot.dxcc_spotted.isContest = dxSpot.dxcc_spotted.isContest || false;
-        dxSpot.dxcc_spotted.contestName = dxSpot.dxcc_spotted.contestName || '';
     }
+    
+    // Always set contest fields fresh from the current spot's message
+    // This ensures contest status is spot-specific, not cached from previous lookups
+    dxSpot.dxcc_spotted.isContest = enrichedMetadata.isContest || false;
+    dxSpot.dxcc_spotted.contestName = enrichedMetadata.contestName || '';
     
     return dxSpot;
 }

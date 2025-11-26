@@ -1416,6 +1416,9 @@ function normalizeDXCCObject(dxccObj) {
     }
     
     // Ensure all expected fields exist with proper defaults
+    // IMPORTANT: Only include DXCC-specific data here (callsign-related)
+    // Do NOT include enrichment fields (sota_ref, pota_ref, iota_ref, wwff_ref, isContest, contestName)
+    // These are spot-message-specific and should be evaluated fresh for each spot
     return {
         cont: dxccObj.cont || '',
         entity: dxccObj.entity || '',
@@ -1424,16 +1427,12 @@ function normalizeDXCCObject(dxccObj) {
         lotw_user: Boolean(dxccObj.lotw_user),
         lat: sanitizeForJSON(dxccObj.lat),
         lng: sanitizeForJSON(dxccObj.lng),
-        cqz: sanitizeForJSON(dxccObj.cqz),
-        // Preserve enrichment fields if present
-        ...(dxccObj.sota_ref !== undefined && { sota_ref: dxccObj.sota_ref || '' }),
-        ...(dxccObj.pota_ref !== undefined && { pota_ref: dxccObj.pota_ref || '' }),
-        ...(dxccObj.iota_ref !== undefined && { iota_ref: dxccObj.iota_ref || '' }),
-        ...(dxccObj.wwff_ref !== undefined && { wwff_ref: dxccObj.wwff_ref || '' }),
-        ...(dxccObj.isContest !== undefined && { isContest: Boolean(dxccObj.isContest) }),
-        ...(dxccObj.contestName && { contestName: dxccObj.contestName }),
-        ...(dxccObj.pota_mode && { pota_mode: dxccObj.pota_mode }),
-        ...(dxccObj.sota_mode && { sota_mode: dxccObj.sota_mode })
+        cqz: sanitizeForJSON(dxccObj.cqz)
+        // Note: All enrichment fields (sota_ref, pota_ref, iota_ref, wwff_ref, isContest, contestName)
+        // are intentionally NOT preserved from DXCC cache. They are spot-specific:
+        // - Park references come from spot messages or POTA/SOTA modules per-spot
+        // - Contest detection is based on spot message content
+        // - pota_mode/sota_mode come from POTA/SOTA API per-spot
     };
 }
 
