@@ -27,6 +27,10 @@ class RateLimiter {
         this.exemptPaths = config.exemptPaths || ['/health', '/metrics'];
         this.trustProxy = config.trustProxy !== false; // Default to true
 
+        // Store configuration values for status reporting
+        this.generalMax = config.generalMax || 120;
+        this.dataMax = config.dataMax || 60;
+
         if (!this.enabled) {
             console.log('[RateLimiter] Module disabled');
             return;
@@ -48,7 +52,7 @@ class RateLimiter {
         this.generalLimiter = rateLimit({
             ...baseLimiterConfig,
             windowMs: config.generalWindow || 60 * 1000, // 1 minute
-            max: config.generalMax || 120, // 120 requests per minute (2 requests/second)
+            max: this.generalMax,
             message: { error: 'Too many requests, please try again later' },
             skip: (req) => this.shouldSkip(req)
         });
@@ -57,12 +61,12 @@ class RateLimiter {
         this.dataLimiter = rateLimit({
             ...baseLimiterConfig,
             windowMs: config.dataWindow || 60 * 1000, // 1 minute
-            max: config.dataMax || 60, // 60 requests per minute (1 request/second, allows polling every 59s)
+            max: this.dataMax,
             message: { error: 'Too many spot requests, please try again later' },
             skip: (req) => this.shouldSkip(req)
         });
 
-        console.log(`[RateLimiter] Initialized - General: ${config.generalMax || 120}/min, Data: ${config.dataMax || 60}/min`);
+        console.log(`[RateLimiter] Initialized - General: ${this.generalMax}/min, Data: ${this.dataMax}/min`);
     }
 
     /**
@@ -132,8 +136,8 @@ class RateLimiter {
     getStatus() {
         return {
             enabled: this.enabled,
-            generalLimit: this.enabled ? '120 requests/minute' : 'disabled',
-            dataLimit: this.enabled ? '60 requests/minute' : 'disabled',
+            generalLimit: this.enabled ? `${this.generalMax} requests/minute` : 'disabled',
+            dataLimit: this.enabled ? `${this.dataMax} requests/minute` : 'disabled',
             exemptPaths: this.exemptPaths
         };
     }

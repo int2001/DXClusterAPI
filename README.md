@@ -396,16 +396,25 @@ PERSISTENCE_PATH=                 # Optional custom path (default: data/spots-ca
 - **Default**: `false` (disabled, enable for production if needed)
 - **Purpose**: Protects API from abuse and DDoS attacks
 - **Location**: `modules/rate-limiter/`
-- **Configuration**: `RATE_LIMITER_ENABLED=false`
+- **Configuration Options**:
+  - `RATE_LIMITER_ENABLED`: Enable/disable rate limiting
+  - `RATE_LIMITER_GENERAL_MAX`: Max requests for general endpoints (default: 120)
+  - `RATE_LIMITER_DATA_MAX`: Max requests for data endpoints (default: 60)
 - **Features**:
-  - General limit: 120 requests/minute per IP
-  - Data endpoints limit: 60 requests/minute per IP (for spot polling)
+  - Configurable rate limits per IP address
+  - Separate limits for general vs data endpoints (for spot polling)
   - Automatic exemption for `/health` and `/metrics`
   - Applied to both API v1 and v2
+  - Proxy-aware for deployments behind reverse proxies
 
-**Rate limits:**
-- Most endpoints: 120 req/min (2 req/sec)
-- Spot data endpoints: 60 req/min (1 req/sec)
+**Default Rate Limits:**
+- General endpoints: 120 req/min (2 req/sec) - configurable via `RATE_LIMITER_GENERAL_MAX`
+- Data endpoints: 60 req/min (1 req/sec) - configurable via `RATE_LIMITER_DATA_MAX`
+
+**Recommended Settings:**
+- Low traffic: `RATE_LIMITER_GENERAL_MAX=60`, `RATE_LIMITER_DATA_MAX=30`
+- Medium traffic: `RATE_LIMITER_GENERAL_MAX=120`, `RATE_LIMITER_DATA_MAX=60` (default)
+- High traffic: `RATE_LIMITER_GENERAL_MAX=240`, `RATE_LIMITER_DATA_MAX=120`
 - Health/metrics: Unlimited
 
 ## Deployment Modes

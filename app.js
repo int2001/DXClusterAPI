@@ -399,15 +399,21 @@ if (config.clusterEnabled && clusters.length > 0) {
 // Rate Limiting Module
 // ================================================================
 const rateLimiter = new RateLimiter({
-    enabled: true,
+    enabled: process.env.RATE_LIMITER_ENABLED !== 'false',
     trustProxy: config.trustProxy,
+    generalMax: parseInt(process.env.RATE_LIMITER_GENERAL_MAX) || 120,
+    dataMax: parseInt(process.env.RATE_LIMITER_DATA_MAX) || 60,
     exemptPaths: [config.baseUrl + '/health', config.baseUrl + '/metrics']
 });
 
 // Apply general rate limiting to all routes
 app.use(rateLimiter.middleware(config.baseUrl));
 
-console.log('[RateLimiter] Rate limiter initialized - General: 120/min, Data: 60/min');
+if (process.env.RATE_LIMITER_ENABLED !== 'false') {
+    console.log(`[RateLimiter] Rate limiter initialized - General: ${process.env.RATE_LIMITER_GENERAL_MAX || 120}/min, Data: ${process.env.RATE_LIMITER_DATA_MAX || 60}/min`);
+} else {
+    console.log('[RateLimiter] Rate limiter disabled');
+}
 
 // ================================================================
 // Metrics Module
