@@ -134,7 +134,13 @@ if (process.env.WEBPORT !== undefined || process.env.MODE !== undefined) {
         persistencePath: process.env.PERSISTENCE_PATH || path.join(__dirname, 'data', 'spots-cache.json'),
         
         // Proxy configuration
-        trustProxy: process.env.TRUST_PROXY !== 'false'  // Default true for reverse proxy compatibility
+        trustProxy: process.env.TRUST_PROXY !== 'false',  // Default true for reverse proxy compatibility
+        
+        // Rate limiter configuration
+        rateLimiterEnabled: process.env.RATE_LIMITER_ENABLED === 'true',
+        rateLimiterGeneralMax: parseInt(process.env.RATE_LIMITER_GENERAL_MAX) || 120,
+        rateLimiterDataMax: parseInt(process.env.RATE_LIMITER_DATA_MAX) || 60,
+        rateLimiterBanTime: parseInt(process.env.RATE_LIMITER_BAN_TIME) || 60
     };
 } else {
     // Fallback to config.js (legacy support)
@@ -399,21 +405,19 @@ if (config.clusterEnabled && clusters.length > 0) {
 // Rate Limiting Module
 // ================================================================
 const rateLimiter = new RateLimiter({
-    enabled: process.env.RATE_LIMITER_ENABLED !== 'false',
+    enabled: config.rateLimiterEnabled,
     trustProxy: config.trustProxy,
-    generalMax: parseInt(process.env.RATE_LIMITER_GENERAL_MAX) || 120,
-    dataMax: parseInt(process.env.RATE_LIMITER_DATA_MAX) || 60,
-    banTimeMs: (parseInt(process.env.RATE_LIMITER_BAN_TIME) || 60) * 1000, // Default 1 minute
+    generalMax: config.rateLimiterGeneralMax,
+    dataMax: config.rateLimiterDataMax,
+    banTimeMs: config.rateLimiterBanTime * 1000, // Convert seconds to ms
     exemptPaths: [config.baseUrl + '/health', config.baseUrl + '/metrics']
 });
 
 // Apply general rate limiting to all routes
 app.use(rateLimiter.middleware(config.baseUrl));
 
-if (process.env.RATE_LIMITER_ENABLED !== 'false') {
-    console.log(`[RateLimiter] Rate limiter initialized - General: ${process.env.RATE_LIMITER_GENERAL_MAX || 120}/min, Data: ${process.env.RATE_LIMITER_DATA_MAX || 60}/min, Ban: ${Math.ceil((parseInt(process.env.RATE_LIMITER_BAN_TIME) || 60) / 1)}s`);
-} else {
-    console.log('[RateLimiter] Rate limiter disabled');
+if (config.rateLimiterEnabled) {
+    console.log(`[RateLimiter] Initialized - General: ${config.rateLimiterGeneralMax}/min, Data: ${config.rateLimiterDataMax}/min, Ban: ${config.rateLimiterBanTime}s`);
 }
 
 // ================================================================

@@ -55,10 +55,8 @@ class RateLimiter {
         // General rate limiter for most endpoints
         this.generalLimiter = rateLimit({
             ...baseLimiterConfig,
-            windowMs: this.generalWindow,
+            windowMs: this.banTimeMs, // Use ban time as window - when exceeded, client waits this long
             max: this.generalMax,
-            // If banTimeMs is set, use it; otherwise use the standard windowMs behavior
-            maxReset: this.banTimeMs > this.generalWindow ? this.banTimeMs : undefined,
             message: { error: `Too many requests. Try again after ${Math.ceil(this.banTimeMs / 1000)} seconds` },
             skip: (req) => this.shouldSkip(req)
         });
@@ -66,10 +64,8 @@ class RateLimiter {
         // Stricter rate limiter for data endpoints (clients typically poll every 59 seconds)
         this.dataLimiter = rateLimit({
             ...baseLimiterConfig,
-            windowMs: this.dataWindow,
+            windowMs: this.banTimeMs, // Use ban time as window - when exceeded, client waits this long
             max: this.dataMax,
-            // If banTimeMs is set, use it; otherwise use the standard windowMs behavior
-            maxReset: this.banTimeMs > this.dataWindow ? this.banTimeMs : undefined,
             message: { error: `Too many spot requests. Try again after ${Math.ceil(this.banTimeMs / 1000)} seconds` },
             skip: (req) => this.shouldSkip(req)
         });

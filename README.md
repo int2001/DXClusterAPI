@@ -1819,24 +1819,33 @@ docker-compose up -d
 
 ### Rate Limiting & DDoS Protection
 
-The API includes built-in rate limiting to protect against abuse and DDoS attacks:
+The API includes built-in rate limiting to protect against abuse and DDoS attacks. Rate limiting is **disabled by default** and can be enabled via environment variables.
 
-- **General endpoints:** 120 requests/minute per IP (2 req/sec)
-- **Spot data endpoints:** 60 requests/minute per IP (1 req/sec)
+**Configuration:**
+```bash
+RATE_LIMITER_ENABLED=true            # Enable rate limiting (default: false)
+RATE_LIMITER_GENERAL_MAX=120         # Requests/minute for general endpoints (default: 120)
+RATE_LIMITER_DATA_MAX=60             # Requests/minute for data endpoints (default: 60)
+RATE_LIMITER_BAN_TIME=60             # Ban time in seconds when limit exceeded (default: 60)
+```
+
+**Default limits (configurable):**
+- **General endpoints:** 120 requests/minute per IP
+- **Spot data endpoints:** 60 requests/minute per IP
 - **Exempt endpoints:** `/health` and `/metrics` (for monitoring)
 
 Rate limits are applied automatically to:
 - API v1: `/spots`, `/spots/:band`, `/spots/source/:source`, `/spot/:qrg`
 - API v2: `/api/v2/spots`, `/api/v2/spots/:callsign`
 
-When rate limit is exceeded, clients receive:
+When rate limit is exceeded, clients receive HTTP 429:
 ```json
 {
-  "error": "Too many spot requests, please try again later"
+  "error": "Too many requests. Try again after 60 seconds"
 }
 ```
 
-The 60 requests/minute limit accommodates typical client polling intervals (every 59-60 seconds).
+The default 60 requests/minute limit for data endpoints accommodates typical client polling intervals (once per second or longer).
 
 ### Prometheus Metrics
 
