@@ -328,17 +328,18 @@ class APIv2 {
                 // Apply pagination (now on reversed/newest-first array)
                 filtered = filtered.slice(offset, offset + limit);
                 
-                // Strip internal debug data before sending to customers
-                const cleanedSpots = this.cleanSpotsForAPI(filtered);
+                // Include source data for debug/live page if requested
+                const includeDebug = filters.debug === 'true' || filters.debug === '1';
+                const responseSpots = includeDebug ? filtered : this.cleanSpotsForAPI(filtered);
                 
                 res.json(this.formatResponse({
                     success: true,
-                    data: cleanedSpots,
+                    data: responseSpots,
                     meta: {
                         total: total,
                         limit: limit,
                         offset: offset,
-                        returned: cleanedSpots.length,
+                        returned: responseSpots.length,
                         filters: filters
                     }
                 }));

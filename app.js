@@ -1416,10 +1416,8 @@ function normalizeDXCCObject(dxccObj) {
     }
     
     // Ensure all expected fields exist with proper defaults
-    // IMPORTANT: Only include DXCC-specific data here (callsign-related)
-    // Do NOT include enrichment fields (sota_ref, pota_ref, iota_ref, wwff_ref, isContest, contestName)
-    // These are spot-message-specific and should be evaluated fresh for each spot
-    return {
+    // Include both DXCC-specific data and enrichment fields
+    const normalized = {
         cont: dxccObj.cont || '',
         entity: dxccObj.entity || '',
         flag: dxccObj.flag || '',
@@ -1428,12 +1426,22 @@ function normalizeDXCCObject(dxccObj) {
         lat: sanitizeForJSON(dxccObj.lat),
         lng: sanitizeForJSON(dxccObj.lng),
         cqz: sanitizeForJSON(dxccObj.cqz)
-        // Note: All enrichment fields (sota_ref, pota_ref, iota_ref, wwff_ref, isContest, contestName)
-        // are intentionally NOT preserved from DXCC cache. They are spot-specific:
-        // - Park references come from spot messages or POTA/SOTA modules per-spot
-        // - Contest detection is based on spot message content
-        // - pota_mode/sota_mode come from POTA/SOTA API per-spot
     };
+    
+    // Preserve enrichment fields if present (set by enrichment module or POTA/SOTA modules)
+    // These are spot-specific, not cached from DXCC lookup
+    if ('sota_ref' in dxccObj) normalized.sota_ref = dxccObj.sota_ref || '';
+    if ('pota_ref' in dxccObj) normalized.pota_ref = dxccObj.pota_ref || '';
+    if ('iota_ref' in dxccObj) normalized.iota_ref = dxccObj.iota_ref || '';
+    if ('wwff_ref' in dxccObj) normalized.wwff_ref = dxccObj.wwff_ref || '';
+    if ('isContest' in dxccObj) normalized.isContest = Boolean(dxccObj.isContest);
+    if ('contestName' in dxccObj) normalized.contestName = dxccObj.contestName || '';
+    
+    // Preserve POTA/SOTA mode info if present (from POTA/SOTA API)
+    if (dxccObj.pota_mode) normalized.pota_mode = dxccObj.pota_mode;
+    if (dxccObj.sota_mode) normalized.sota_mode = dxccObj.sota_mode;
+    
+    return normalized;
 }
 
 /**

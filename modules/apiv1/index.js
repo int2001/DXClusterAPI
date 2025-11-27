@@ -117,6 +117,7 @@ class APIv1 {
          * GET /spots - Retrieve cached spots (limited to latest N spots, sorted by timestamp)
          * Limit is configurable via API_SPOT_LIMIT environment variable (default: 200)
          * Uses 1-minute response cache to reduce CPU overhead from repeated JSON serialization
+         * Add ?debug=true to include source data for debugging
          */
         router.get(baseUrl + '/spots', cache, rateLimiter || ((req, res, next) => next()), (req, res) => {
             const spots = this.getSpotsData();
@@ -126,9 +127,12 @@ class APIv1 {
             // So we slice from the end to get the newest spots
             const limitedSpots = spots.length > limit ? spots.slice(-limit) : spots.slice();
             
-            // Strip internal debugging data and reverse to show newest first
-            const cleanSpots = this.cleanSpotsForAPI(limitedSpots);
-            res.json(cleanSpots.reverse());
+            // Include source data for debug/live page if requested
+            const includeDebug = req.query.debug === 'true' || req.query.debug === '1';
+            const responseSpots = includeDebug ? limitedSpots : this.cleanSpotsForAPI(limitedSpots);
+            
+            // Reverse to show newest first
+            res.json(responseSpots.reverse());
         });
 
         /**

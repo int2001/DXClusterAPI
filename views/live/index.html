@@ -1218,9 +1218,9 @@
                         }
                         updateStatus(true, 'Socket.IO');
 
-                        // Fetch initial spots to populate the table
+                        // Fetch initial spots to populate the table (with debug data for source info)
                         try {
-                            const response = await fetch(apiUrl('/spots'));
+                            const response = await fetch(apiUrl('/spots?debug=true'));
                             if (response.ok) {
                                 const spots = await response.json();
                                 console.log(`Loaded ${spots.length} initial spots from server`);
@@ -1344,7 +1344,7 @@
 
         async function pollSpots() {
             try {
-                const response = await fetch(apiUrl('/spots'));
+                const response = await fetch(apiUrl('/spots?debug=true'));
                 if (!response.ok) throw new Error('Poll failed');
                 
                 const spots = await response.json();
@@ -2480,7 +2480,7 @@
         // Fetch initial spots to populate table when WebSocket connects
         async function fetchInitialSpots() {
             try {
-                const response = await fetch(apiUrl('/spots'));
+                const response = await fetch(apiUrl('/spots?debug=true'));
                 if (response.ok) {
                     const spots = await response.json();
                     console.log(`Loaded ${spots.length} initial spots from server`);
