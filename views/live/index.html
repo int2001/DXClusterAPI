@@ -1225,8 +1225,9 @@
                                 const spots = await response.json();
                                 console.log(`Loaded ${spots.length} initial spots from server`);
 
-                                // Add all spots to the display (skip rate counting for restored spots)
-                                spots.forEach(spot => addSpot(spot, true));
+                                // Reverse so oldest is processed first, newest ends up on top
+                                // (addSpot inserts at the top of the table)
+                                spots.reverse().forEach(spot => addSpot(spot, true));
                             }
                         } catch (error) {
                             console.error('Failed to load initial spots:', error);
@@ -1357,8 +1358,8 @@
                 }
                 
                 // Process all spots and let addSpot handle deduplication
-                // This way we always process the data even if total count hasn't changed
-                spots.forEach(spot => addSpot(spot));
+                // Reverse so oldest is processed first, newest ends up on top
+                spots.reverse().forEach(spot => addSpot(spot));
                 
             } catch (error) {
                 console.error('Polling error:', error);
@@ -2492,8 +2493,9 @@
                         noDataRow.remove();
                     }
 
-                    // Add all spots to display (skip rate counting for restored spots)
-                    spots.forEach(spot => addSpot(spot, true));
+                    // Reverse so oldest is processed first, newest ends up on top
+                    // (addSpot inserts at the top of the table)
+                    spots.reverse().forEach(spot => addSpot(spot, true));
                 }
             } catch (error) {
                 console.error('Failed to load initial spots:', error);
