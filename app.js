@@ -2323,7 +2323,10 @@ async function dxcc_lookup(call) {
     // 2. Check if lookup is already in progress for this callsign
     if (pendingDxccLookups.has(normalizedCall)) {
         // Return the existing promise to avoid duplicate lookups
-        return pendingDxccLookups.get(normalizedCall);
+        // IMPORTANT: Return a shallow copy to prevent shared object references
+        // (e.g., when spotter === spotted in self-spots like POTA activators)
+        const pendingResult = await pendingDxccLookups.get(normalizedCall);
+        return { ...pendingResult };
     }
     
     // 3. Perform actual lookup via PHP
@@ -2332,7 +2335,8 @@ async function dxcc_lookup(call) {
     
     try {
         const result = await lookupPromise;
-        return result;
+        // Return a shallow copy to prevent shared object references
+        return { ...result };
     } finally {
         // Remove from pending after completion (success or failure)
         pendingDxccLookups.delete(normalizedCall);
