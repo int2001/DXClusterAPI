@@ -19,6 +19,7 @@ class RateLimiter {
      * @param {number} config.generalMax - Max requests for general limiter (default: 120)
      * @param {number} config.dataWindow - Time window for data limiter in ms (default: 60000)
      * @param {number} config.dataMax - Max requests for data limiter (default: 60)
+     * @param {number} config.banTimeMs - Ban duration in ms when limit exceeded (default: same as windowMs)
      * @param {Array<string>} config.exemptPaths - Paths to exempt from rate limiting
      * @param {boolean} config.trustProxy - Whether running behind a proxy
      */
@@ -30,6 +31,9 @@ class RateLimiter {
         // Store configuration values for status reporting
         this.generalMax = config.generalMax || 120;
         this.dataMax = config.dataMax || 60;
+        this.banTimeMs = config.banTimeMs || 60 * 1000; // Default to 1 minute ban
+        this.generalWindow = config.generalWindow || 60 * 1000; // 1 minute window
+        this.dataWindow = config.dataWindow || 60 * 1000; // 1 minute window
 
         if (!this.enabled) {
             console.log('[RateLimiter] Module disabled');
@@ -51,22 +55,26 @@ class RateLimiter {
         // General rate limiter for most endpoints
         this.generalLimiter = rateLimit({
             ...baseLimiterConfig,
-            windowMs: config.generalWindow || 60 * 1000, // 1 minute
+            windowMs: this.generalWindow,
             max: this.generalMax,
-            message: { error: 'Too many requests, please try again later' },
+            // If banTimeMs is set, use it; otherwise use the standard windowMs behavior
+            maxReset: this.banTimeMs > this.generalWindow ? this.banTimeMs : undefined,
+            message: { error: `Too many requests. Try again after ${Math.ceil(this.banTimeMs / 1000)} seconds` },
             skip: (req) => this.shouldSkip(req)
         });
 
         // Stricter rate limiter for data endpoints (clients typically poll every 59 seconds)
         this.dataLimiter = rateLimit({
             ...baseLimiterConfig,
-            windowMs: config.dataWindow || 60 * 1000, // 1 minute
+            windowMs: this.dataWindow,
             max: this.dataMax,
-            message: { error: 'Too many spot requests, please try again later' },
+            // If banTimeMs is set, use it; otherwise use the standard windowMs behavior
+            maxReset: this.banTimeMs > this.dataWindow ? this.banTimeMs : undefined,
+            message: { error: `Too many spot requests. Try again after ${Math.ceil(this.banTimeMs / 1000)} seconds` },
             skip: (req) => this.shouldSkip(req)
         });
 
-        console.log(`[RateLimiter] Initialized - General: ${this.generalMax}/min, Data: ${this.dataMax}/min`);
+        console.log(`[RateLimiter] Initialized - General: ${this.generalMax}/min, Data: ${this.dataMax}/min, Ban: ${Math.ceil(this.banTimeMs / 1000)}s`);
     }
 
     /**
@@ -138,6 +146,7 @@ class RateLimiter {
             enabled: this.enabled,
             generalLimit: this.enabled ? `${this.generalMax} requests/minute` : 'disabled',
             dataLimit: this.enabled ? `${this.dataMax} requests/minute` : 'disabled',
+            banTime: this.enabled ? `${Math.ceil(this.banTimeMs / 1000)} seconds` : 'disabled',
             exemptPaths: this.exemptPaths
         };
     }

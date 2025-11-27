@@ -400,9 +400,11 @@ PERSISTENCE_PATH=                 # Optional custom path (default: data/spots-ca
   - `RATE_LIMITER_ENABLED`: Enable/disable rate limiting
   - `RATE_LIMITER_GENERAL_MAX`: Max requests for general endpoints (default: 120)
   - `RATE_LIMITER_DATA_MAX`: Max requests for data endpoints (default: 60)
+  - `RATE_LIMITER_BAN_TIME`: Ban duration when limit exceeded, in seconds (default: 60)
 - **Features**:
   - Configurable rate limits per IP address
   - Separate limits for general vs data endpoints (for spot polling)
+  - Configurable ban time for rate limit violations
   - Automatic exemption for `/health` and `/metrics`
   - Applied to both API v1 and v2
   - Proxy-aware for deployments behind reverse proxies
@@ -410,11 +412,13 @@ PERSISTENCE_PATH=                 # Optional custom path (default: data/spots-ca
 **Default Rate Limits:**
 - General endpoints: 120 req/min (2 req/sec) - configurable via `RATE_LIMITER_GENERAL_MAX`
 - Data endpoints: 60 req/min (1 req/sec) - configurable via `RATE_LIMITER_DATA_MAX`
+- Ban duration: 60 seconds (1 minute) - configurable via `RATE_LIMITER_BAN_TIME`
 
 **Recommended Settings:**
-- Low traffic: `RATE_LIMITER_GENERAL_MAX=60`, `RATE_LIMITER_DATA_MAX=30`
-- Medium traffic: `RATE_LIMITER_GENERAL_MAX=120`, `RATE_LIMITER_DATA_MAX=60` (default)
-- High traffic: `RATE_LIMITER_GENERAL_MAX=240`, `RATE_LIMITER_DATA_MAX=120`
+- **Low traffic**: `RATE_LIMITER_GENERAL_MAX=60`, `RATE_LIMITER_DATA_MAX=30`, `RATE_LIMITER_BAN_TIME=60`
+- **Medium traffic**: `RATE_LIMITER_GENERAL_MAX=120`, `RATE_LIMITER_DATA_MAX=60`, `RATE_LIMITER_BAN_TIME=60` (default)
+- **High traffic**: `RATE_LIMITER_GENERAL_MAX=240`, `RATE_LIMITER_DATA_MAX=120`, `RATE_LIMITER_BAN_TIME=300`
+- **Strict security**: `RATE_LIMITER_GENERAL_MAX=60`, `RATE_LIMITER_DATA_MAX=30`, `RATE_LIMITER_BAN_TIME=600`
 - Health/metrics: Unlimited
 
 ## Deployment Modes

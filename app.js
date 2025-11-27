@@ -403,6 +403,7 @@ const rateLimiter = new RateLimiter({
     trustProxy: config.trustProxy,
     generalMax: parseInt(process.env.RATE_LIMITER_GENERAL_MAX) || 120,
     dataMax: parseInt(process.env.RATE_LIMITER_DATA_MAX) || 60,
+    banTimeMs: (parseInt(process.env.RATE_LIMITER_BAN_TIME) || 60) * 1000, // Default 1 minute
     exemptPaths: [config.baseUrl + '/health', config.baseUrl + '/metrics']
 });
 
@@ -410,7 +411,7 @@ const rateLimiter = new RateLimiter({
 app.use(rateLimiter.middleware(config.baseUrl));
 
 if (process.env.RATE_LIMITER_ENABLED !== 'false') {
-    console.log(`[RateLimiter] Rate limiter initialized - General: ${process.env.RATE_LIMITER_GENERAL_MAX || 120}/min, Data: ${process.env.RATE_LIMITER_DATA_MAX || 60}/min`);
+    console.log(`[RateLimiter] Rate limiter initialized - General: ${process.env.RATE_LIMITER_GENERAL_MAX || 120}/min, Data: ${process.env.RATE_LIMITER_DATA_MAX || 60}/min, Ban: ${Math.ceil((parseInt(process.env.RATE_LIMITER_BAN_TIME) || 60) / 1)}s`);
 } else {
     console.log('[RateLimiter] Rate limiter disabled');
 }
