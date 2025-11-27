@@ -1408,7 +1408,7 @@ function normalizeDXCCObject(dxccObj) {
             entity: '',
             flag: '',
             dxcc_id: '',
-            lotw_user: false,
+            lotw_user: null,
             lat: null,
             lng: null,
             cqz: null
@@ -1422,7 +1422,8 @@ function normalizeDXCCObject(dxccObj) {
         entity: dxccObj.entity || '',
         flag: dxccObj.flag || '',
         dxcc_id: dxccObj.dxcc_id || '',
-        lotw_user: Boolean(dxccObj.lotw_user),
+        // lotw_user is days since last upload (number) or null/false if not a LoTW user
+        lotw_user: dxccObj.lotw_user !== undefined ? dxccObj.lotw_user : null,
         lat: sanitizeForJSON(dxccObj.lat),
         lng: sanitizeForJSON(dxccObj.lng),
         cqz: sanitizeForJSON(dxccObj.cqz)
