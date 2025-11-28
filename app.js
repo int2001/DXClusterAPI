@@ -219,24 +219,33 @@ validateConfig();
 const LOG_DIR = path.join(__dirname, 'logs');
 let logStream = null;
 let LOG_FILE = null;
+let currentLogDate = null;
 
-if (config.fileLoggingEnabled) {
-    try { 
-        fs.mkdirSync(LOG_DIR, { recursive: true }); 
-    } catch (_) {}
+// Daily filename formatter (global for use in /logs endpoint)
+function fmtLogDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}${m}${dd}`;
+}
 
-    // Daily filename
-    function fmtDate(d) {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        return `${y}${m}${dd}`;
+/**
+ * Rotates the log file if the date has changed
+ */
+function rotateLogIfNeeded() {
+    const todayStr = fmtLogDate(new Date());
+    if (currentLogDate === todayStr) return;
+    
+    // Close existing stream
+    if (logStream) {
+        try { logStream.end(); } catch (_) {}
     }
-
-    const today = new Date();
-    LOG_FILE = path.join(LOG_DIR, `app-${fmtDate(today)}.log`);
-
-    // Prune old logs
+    
+    currentLogDate = todayStr;
+    LOG_FILE = path.join(LOG_DIR, `app-${todayStr}.log`);
+    logStream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
+    
+    // Prune old logs on rotation
     try {
         const files = fs.readdirSync(LOG_DIR);
         const cutoff = new Date(Date.now() - config.logRetentionDays * 24 * 60 * 60 * 1000);
@@ -252,8 +261,15 @@ if (config.fileLoggingEnabled) {
             }
         });
     } catch (_) {}
+}
 
-    logStream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
+if (config.fileLoggingEnabled) {
+    try { 
+        fs.mkdirSync(LOG_DIR, { recursive: true }); 
+    } catch (_) {}
+
+    // Initialize log file
+    rotateLogIfNeeded();
 
     function stamp(level, args) {
         const ts = new Date().toISOString();
@@ -268,9 +284,9 @@ if (config.fileLoggingEnabled) {
     const _err = console.error.bind(console);
     const _warn = console.warn.bind(console);
 
-    console.log = (...args) => { const line = stamp('INFO', args); try { logStream.write(line); } catch (_) {} _log(...args); };
-    console.warn = (...args) => { const line = stamp('WARN', args); try { logStream.write(line); } catch (_) {} _warn(...args); };
-    console.error = (...args) => { const line = stamp('ERROR', args); try { logStream.write(line); } catch (_) {} _err(...args); };
+    console.log = (...args) => { rotateLogIfNeeded(); const line = stamp('INFO', args); try { logStream.write(line); } catch (_) {} _log(...args); };
+    console.warn = (...args) => { rotateLogIfNeeded(); const line = stamp('WARN', args); try { logStream.write(line); } catch (_) {} _warn(...args); };
+    console.error = (...args) => { rotateLogIfNeeded(); const line = stamp('ERROR', args); try { logStream.write(line); } catch (_) {} _err(...args); };
 }
 
 // Build enabled modules list (all modules in one list)
@@ -947,15 +963,10 @@ app.get(config.baseUrl + '/logs', (req, res) => {
     }
     
     try {
-        const today = new Date();
-        const fmtDate = (d) => {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const dd = String(d.getDate()).padStart(2, '0');
-            return `${y}${m}${dd}`;
-        };
+        // Ensure log rotation happens so today's log file exists
+        rotateLogIfNeeded();
         
-        const logFile = path.join(LOG_DIR, `app-${fmtDate(today)}.log`);
+        const logFile = path.join(LOG_DIR, `app-${fmtLogDate(new Date())}.log`);
         
         if (!fs.existsSync(logFile)) {
             return res.json({ logs: [], message: 'No log file found for today' });
