@@ -160,11 +160,15 @@ function enrichSpotMetadata(spot) {
         metadata.wwff_ref = wwffMatch[1];
     }
 
-    // POTA format: XX-#### (e.g., "US-4306", "K-1234", "DE-0277")
-    // Must not match WWFF patterns (ending in FF) - checked last to avoid conflicts
-    const potaMatch = upperMessage.match(/\b([A-Z0-9]{1,5}-\d{4,5})\b/);
-    if (potaMatch && !potaMatch[1].includes('FF-')) {
-        metadata.pota_ref = potaMatch[1];
+    // POTA format: XX-#### (e.g., "US-4306", "K-1234", "DE-0277", "PL-0797")
+    // Must not match WWFF patterns (ending in FF) - use matchAll to find all candidates
+    // since the first match might be a WWFF reference
+    const potaRegex = /\b([A-Z0-9]{1,5}-\d{4,5})\b/g;
+    for (const match of upperMessage.matchAll(potaRegex)) {
+        if (!match[1].includes('FF-')) {
+            metadata.pota_ref = match[1];
+            break; // Take the first valid POTA reference
+        }
     }
 
     // Contest detection - more strict to avoid false positives
