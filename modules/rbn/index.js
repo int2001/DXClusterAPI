@@ -154,6 +154,10 @@ class RBNManager extends EventEmitter {
 
         } catch (error) {
             console.error(`[RBN] Failed to connect to ${config.cluster}:`, error.message);
+            // Clean up failed connection before retry
+            if (this.cluster) {
+                this._cleanupRbnConnection({ cluster: config, conn: this.cluster });
+            }
             this._scheduleReconnect(config);
         }
     }
