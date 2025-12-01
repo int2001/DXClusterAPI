@@ -68,24 +68,33 @@ class Clusters extends EventEmitter {
      */
     _connectOne(cluster) {
         const clusterKey = cluster.host + ':' + cluster.port;
-        
+
         // Cancel any pending reconnect timer for this cluster
         if (this.reconnectTimers.has(clusterKey)) {
             clearTimeout(this.reconnectTimers.get(clusterKey));
             this.reconnectTimers.delete(clusterKey);
         }
-        
-        // Remove old connection from connections array if exists
-        this.connections = this.connections.filter(c => 
+
+        // Remove old connection from connections array and cleanup if exists
+        const oldConnection = this.connections.find(c =>
+            c.cluster.host === cluster.host && c.cluster.port === cluster.port
+        );
+
+        if (oldConnection) {
+            // Cleanup old connection before creating new one
+            this._cleanupConnection(oldConnection);
+        }
+
+        this.connections = this.connections.filter(c =>
             !(c.cluster.host === cluster.host && c.cluster.port === cluster.port)
         );
-        
+
         logConnectionState('attempting', cluster.host, 'DXCluster server for receiving spots');
         const conn = new DXCluster();
-        
+
         // Track connection state to prevent double-counting
         let isConnected = false;
-        
+
         try {
             conn.connect(cluster).then(() => {
                 logConnectionState('connected', cluster.host, 'DXCluster server for receiving spots');
@@ -162,6 +171,32 @@ class Clusters extends EventEmitter {
     }
 
     /**
+     * Internal method to cleanup connection resources and prevent memory leaks
+     * Called during reconnection, shutdown, and connection failures
+     * @private
+     */
+    _cleanupConnection(connectionObj) {
+        const { conn, clusterKey } = connectionObj;
+        try {
+            // Remove all event listeners from DXCluster instance
+            if (conn && conn.removeAllListeners) {
+                conn.removeAllListeners();
+            }
+
+            // Call cleanup method on DXCluster instance if available
+            if (conn && conn._cleanupResources) {
+                conn._cleanupResources();
+            }
+
+            // Remove from tracking maps
+            this.activeConnMap.delete(clusterKey);
+            this.reconnectTimers.delete(clusterKey);
+        } catch (error) {
+            console.error('[Clusters] Connection cleanup error:', error);
+        }
+    }
+
+    /**
      * Schedule a reconnection attempt with exponential backoff
      * @private
      */
@@ -213,24 +248,31 @@ class Clusters extends EventEmitter {
      */
     shutdown() {
         console.log('[Clusters] Shutting down cluster connections...');
-        
+
         // Cancel all pending reconnect timers
         this.reconnectTimers.forEach((timerId, clusterKey) => {
             clearTimeout(timerId);
             console.log(`[Clusters] Cancelled reconnect timer for ${clusterKey}`);
         });
         this.reconnectTimers.clear();
-        
-        // Close all connections
+
+        // Close all connections with proper cleanup
         this.connections.forEach(({ conn, clusterKey }) => {
             try {
-                conn.removeAllListeners();
-                // If DXCluster module has a disconnect/close method, call it here
+                // Remove all event listeners first
+                if (conn && conn.removeAllListeners) {
+                    conn.removeAllListeners();
+                }
+
+                // Call cleanup method on DXCluster instance if available
+                if (conn && conn._cleanupResources) {
+                    conn._cleanupResources();
+                }
             } catch (e) {
                 console.error('[Clusters] Error closing cluster connection:', e);
             }
         });
-        
+
         this.connections = [];
         this.activeConnMap.clear();
         this.reconnectDelays.clear();
