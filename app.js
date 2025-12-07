@@ -2288,10 +2288,6 @@ function normalizeCallsign(call) {
         .toUpperCase()
         .replace(/\/P$/i, '')      // Portable
         .replace(/\/M$/i, '')      // Mobile
-        .replace(/\/MM$/i, '')     // Maritime Mobile
-        .replace(/\/AM$/i, '')     // Aeronautical Mobile
-        .replace(/\/QRP$/i, '')    // QRP
-        .replace(/\/[0-9]$/i, '')  // District number at end
         .trim();
     
     return normalized;
