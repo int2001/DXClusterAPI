@@ -1757,6 +1757,24 @@ async function handlespot(spot, spot_source = "cluster") {
 			}
 		}
 
+		// Check for a different callsign on the same frequency
+		const freqSpot = frequencyIndex.get(dxSpot.frequency);
+		if (freqSpot && generateSpotKey(freqSpot) !== spotKey) {
+			const newTimestamp = Date.parse(dxSpot.when);
+			const freqTimestamp = Date.parse(freqSpot.when);
+			if (newTimestamp > freqTimestamp) {
+				// New spot is newer - evict the old one from the same QRG
+				const index = spots.indexOf(freqSpot);
+				if (index !== -1) {
+					spots.splice(index, 1);
+				}
+				removeFromIndexes(freqSpot);
+			} else {
+				// Existing spot on this QRG is newer - discard new spot
+				return;
+			}
+		}
+
 		// Insert spot in sorted position (by timestamp) using binary search
 		// This maintains the array sorted at all times, making eviction O(1)
 		const insertIndex = findInsertionIndex(spots, dxSpot);
@@ -1770,27 +1788,19 @@ async function handlespot(spot, spot_source = "cluster") {
 			broadcastSpot(dxSpot);
 		}
 
-		// Empty out spots if maximum cache is reached
-		// Two-phase eviction: 1) Remove expired RBN spots, 2) LRU eviction if still needed
+		// Empty out spots if maximum cache is reached - LRU eviction
 		if (spots.length >= config.maxcache) {
-			// Phase 1: Remove expired RBN spots (they're stale after 5 minutes)
-            const expiredCount = cleanupExpiredRBN();
-            if (expiredCount > 0) {
-                console.log(`[Core] Cache full: removed ${expiredCount} expired RBN spots, now ${spots.length} spots`);
-            }			// Phase 2: If still full after RBN cleanup, do LRU eviction
-			if (spots.length >= config.maxcache) {
-				const batchSize = Math.max(Math.floor(config.maxcache * 0.1), 10); // Remove at least 10 spots
-				
-				// Atomic removal: slice creates new array without oldest spots
-				// This prevents race conditions during API reads
-				const removedSpots = spots.slice(0, batchSize);
-				spots = spots.slice(batchSize);
-				
-				// Clean up indexes
-				removedSpots.forEach(spot => removeFromIndexes(spot));
-				
-				console.log(`[Core] Cache still full (${config.maxcache}): removed ${batchSize} oldest spots, now ${spots.length} spots`);
-			}
+			const batchSize = Math.max(Math.floor(config.maxcache * 0.1), 10); // Remove at least 10 spots
+
+			// Atomic removal: slice creates new array without oldest spots
+			// This prevents race conditions during API reads
+			const removedSpots = spots.slice(0, batchSize);
+			spots = spots.slice(batchSize);
+
+			// Clean up indexes
+			removedSpots.forEach(spot => removeFromIndexes(spot));
+
+			console.log(`[Core] Cache full (${config.maxcache}): removed ${batchSize} oldest spots, now ${spots.length} spots`);
 		}
 		
 	} catch(e) { 
@@ -1798,42 +1808,6 @@ async function handlespot(spot, spot_source = "cluster") {
 	} 
 }
 
-/**
- * Removes expired RBN spots from cache
- * RBN spots older than RBN_SPOT_TIMEOUT should not be displayed
- * @returns {number} Number of spots removed
- */
-function cleanupExpiredRBN() {
-	// Early exit if no RBN spots exist
-	if (rbnSpotCount === 0) {
-		return 0;
-	}
-	
-	const now = Date.now();
-	const rbnMaxAge = config.rbnSpotTimeout * 60 * 1000; // Convert minutes to milliseconds
-	let removedCount = 0;
-	
-	// Filter approach: create new array without expired RBN spots
-	// This is safer for concurrent reads than splice operations
-	const filteredSpots = spots.filter(spot => {
-		if (spot.source === 'rbn') {
-			const age = now - Date.parse(spot.when);
-			if (age > rbnMaxAge) {
-				removeFromIndexes(spot);
-				removedCount++;
-				return false; // Remove this spot
-			}
-		}
-		return true; // Keep this spot
-	});
-	
-	// Atomic replacement if any spots were removed
-	if (removedCount > 0) {
-		spots = filteredSpots;
-	}
-	
-	return removedCount;
-}
 
 // -----------------------------------
 // Index Management Functions
