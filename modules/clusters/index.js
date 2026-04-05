@@ -154,6 +154,11 @@ class Clusters extends EventEmitter {
                 this.emit('spot', spot, cluster.cluster || 'cluster');
             });
 
+            // Monitor custom command execution (cleanup handled by _cleanupConnection)
+            conn.on('custom_command_sent', (command) => {
+                logConnectionState('info', cluster.host, `Custom command sent: "${command}"`);
+            });
+
             this.connections.push({ cluster, conn, clusterKey });
         } catch (e) {
             logConnectionState('error', cluster.host, 'DXCluster not reachable', e);
