@@ -15,7 +15,7 @@ const APIv1 = require('./modules/apiv1');
 const APIv2 = require('./modules/apiv2');
 const Metrics = require('./modules/metrics');
 const RateLimiter = require('./modules/rate-limiter');
-const { toUcWord, qrg2band, getFreshestSpot, getOldestSpot, normalizeFrequency } = require('./lib/utils');
+const { toUcWord, qrg2band, getFreshestSpot, getOldestSpot, normalizeFrequency, parseSkimmerMessage } = require('./lib/utils');
 const express = require("express");
 const app = express();
 const path = require("path");
@@ -1504,6 +1504,7 @@ function validateAndSanitizeSpot(spot) {
         band: String(spot.band || ''),
         mode: spot.mode || null,
         submode: spot.submode || null,
+	        skimmer: spot.skimmer || null,
         dxcc_spotter: normalizeDXCCObject(spot.dxcc_spotter),
         dxcc_spotted: normalizeDXCCObject(spot.dxcc_spotted)
     };
@@ -1538,10 +1539,13 @@ async function handlespot(spot, spot_source = "cluster") {
 			return;
 		}
 		
+		// Store original spotter callsign before normalization for skimmer parsing
+		const originalSpotter = spot.spotter;
+
 		// Normalize spotter callsign - strip RBN/cluster suffixes like -#, -15, etc.
 		// This simplifies deduplication and improves cache hit rates
 		spot.spotter = normalizeSpotterCallsign(spot.spotter);
-		
+
 		// Normalize frequency for consistency (based on Wavelog PR #2514)
 		// All frequencies should be in kHz with 1 decimal place
 		const normalizedFreq = normalizeFrequency(spot.frequency);
@@ -1602,7 +1606,14 @@ async function handlespot(spot, spot_source = "cluster") {
 			_sourceData: sourceData  // Attach source data for GUI display
 		}
 
-		//do DXCC lookup (with timeout protection)
+		// Parse skimmer messages if this is a skimmer spot
+			// Only processes spots with -# suffix in spotter callsign
+			const skimmerData = parseSkimmerMessage(spot.message, originalSpotter);
+			if (skimmerData) {
+				dxSpot.skimmer = skimmerData;
+			}
+
+			//do DXCC lookup (with timeout protection)
 		try {
 			dxSpot.dxcc_spotter = await dxcc_lookup(spot.spotter);
 			dxSpot.dxcc_spotted = await dxcc_lookup(spot.spotted);
@@ -1934,23 +1945,6 @@ function removeFromIndexes(spot) {
 /**
  * Rebuilds all indexes from scratch
  */
-function rebuildIndexes() {
-    bandIndex.clear();
-    frequencyIndex.clear();
-    sourceIndex.clear();
-    spotKeyIndex.clear();
-    
-    // Clear statistics indexes
-    modeTypeStats.phone = 0;
-    modeTypeStats.digi = 0;
-    modeTypeStats.cw = 0;
-    modeTypeStats.unknown = 0;
-    Object.keys(continentStats).forEach(key => delete continentStats[key]);
-    Object.keys(continentDeStats).forEach(key => delete continentDeStats[key]);
-    rbnSpotCount = 0;
-
-    spots.forEach(spot => updateIndexes(spot));
-}
 
 /**
  * Removes spots older than the configured maximum age
@@ -2008,17 +2002,11 @@ function logStatistics() {
             const analyticsSummary = analytics.getSummary();
             totalRequests = analyticsSummary.summary?.totalRequests || 0;
             
-            // Debug: log if analytics seems disabled or has no data
-            if (totalRequests === 0 && Object.keys(analyticsSummary.clients || {}).length === 0) {
-                console.log(`[Core] [DEBUG] Analytics enabled but no requests tracked yet`);
-            }
         } catch (e) {
             console.error(`[Core] [ERROR] Failed to get analytics summary: ${e.message}`);
         }
     } else {
-        console.log(`[Core] [DEBUG] Analytics disabled (enabled: ${config.analyticsEnabled})`);
-    }
-    
+            }
     console.log(`[Core] ═══════════════════════════════════════════════════════════════════════════`);
     console.log(`[Core] Statistics: Uptime=${uptimeHours}h ${uptimeMinutes}m | Requests=${totalRequests} | Total Spots=${spots.length}`);
     console.log(`[Core] Sources: ${sourceList || 'none'}`);
