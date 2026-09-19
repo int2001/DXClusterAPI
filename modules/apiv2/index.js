@@ -427,11 +427,25 @@ class APIv2 {
             }
         });
 
+        // Shared auth middleware for endpoints below (reuses existing API key config)
+        const requireApiAuth = (req, res, next) => {
+            if (!this.requireAuth) return next();
+            const providedKey = req.headers['x-api-key'];
+            if (providedKey !== this.apiKey) {
+                return res.status(401).json(this.formatResponse({
+                    success: false,
+                    error: 'Unauthorized - invalid or missing API key',
+                    data: null
+                }));
+            }
+            next();
+        };
+
         /**
          * GET /api/v2/bands
          * Get list of active bands with spot counts
          */
-        router.get('/bands', (req, res) => {
+        router.get('/bands', requireApiAuth, rateLimiter || ((req, res, next) => next()), (req, res) => {
             try {
                 const spots = this.getSpotsData();
                 const bandStats = {};
@@ -466,7 +480,7 @@ class APIv2 {
          * GET /api/v2/sources
          * Get list of active sources with spot counts
          */
-        router.get('/sources', (req, res) => {
+        router.get('/sources', requireApiAuth, rateLimiter || ((req, res, next) => next()), (req, res) => {
             try {
                 const spots = this.getSpotsData();
                 const sourceStats = {};
@@ -518,7 +532,7 @@ class APIv2 {
          *   }
          * }
          */
-        router.get('/heatmap', (req, res) => {
+        router.get('/heatmap', requireApiAuth, rateLimiter || ((req, res, next) => next()), (req, res) => {
             try {
                 let heatmapData = this.generateHeatmap();
                 
@@ -560,7 +574,7 @@ class APIv2 {
          * GET /api/v2/info
          * Get API information and capabilities
          */
-        router.get('/info', (req, res) => {
+        router.get('/info', requireApiAuth, rateLimiter || ((req, res, next) => next()), (req, res) => {
             res.json(this.formatResponse({
                 success: true,
                 data: {
