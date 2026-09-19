@@ -623,6 +623,15 @@ app.get(config.baseUrl + '/api/v2/dxcc/:callsign', async (req, res) => {
  * This allows forcing a fresh lookup from the Wavelog API
  */
 app.delete(config.baseUrl + '/api/v2/dxcc/:callsign/cache', (req, res) => {
+    const apiV2Key = process.env.API_V2_KEY;
+    if (apiV2Key && req.headers['x-api-key'] !== apiV2Key) {
+        return res.status(401).json({
+            status: 'error',
+            error: 'Unauthorized: valid X-API-Key header required',
+            data: null
+        });
+    }
+
     const callsign = req.params.callsign?.toUpperCase().trim();
     
     if (!callsign) {
