@@ -55,8 +55,6 @@ ehthumbs.db
 # Dependencies (will be installed during build)
 node_modules/
 
-# Lock files (package-lock.json generated during build)
-package-lock.json
 yarn.lock
 
 # Test files
