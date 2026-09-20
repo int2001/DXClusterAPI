@@ -24,7 +24,8 @@
     "start": "node index.js",
     "start:docker": "MODE=docker node index.js",
     "start:native": "MODE=native node index.js",
-    "dev": "node index.js"
+    "dev": "node index.js",
+    "test": "node --test"
   },
   "dependencies": {
     "axios": "^1.13.2",

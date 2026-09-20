@@ -431,7 +431,7 @@ class APIv2 {
          * GET /api/v2/bands
          * Get list of active bands with spot counts
          */
-        router.get('/bands', (req, res) => {
+        router.get('/bands', rateLimiter || ((req, res, next) => next()), (req, res) => {
             try {
                 const spots = this.getSpotsData();
                 const bandStats = {};
@@ -466,7 +466,7 @@ class APIv2 {
          * GET /api/v2/sources
          * Get list of active sources with spot counts
          */
-        router.get('/sources', (req, res) => {
+        router.get('/sources', rateLimiter || ((req, res, next) => next()), (req, res) => {
             try {
                 const spots = this.getSpotsData();
                 const sourceStats = {};
@@ -518,7 +518,7 @@ class APIv2 {
          *   }
          * }
          */
-        router.get('/heatmap', (req, res) => {
+        router.get('/heatmap', rateLimiter || ((req, res, next) => next()), (req, res) => {
             try {
                 let heatmapData = this.generateHeatmap();
                 
@@ -560,7 +560,7 @@ class APIv2 {
          * GET /api/v2/info
          * Get API information and capabilities
          */
-        router.get('/info', (req, res) => {
+        router.get('/info', rateLimiter || ((req, res, next) => next()), (req, res) => {
             res.json(this.formatResponse({
                 success: true,
                 data: {
