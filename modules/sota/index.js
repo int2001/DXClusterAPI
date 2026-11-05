@@ -70,6 +70,14 @@ module.exports = class SOTASpots extends events.EventEmitter {
           continue;
         }
 
+        // Failsafe: upstream retired the spots endpoint but still answers
+        // HTTP 200 with a DEPRECATED placeholder. Stop polling entirely.
+        if (SOTASpots.isDeprecatedResponse(rawspots)) {
+          console.error('[SOTA] Upstream API endpoint is retired (api2.sota.org.uk). Module stopped. Set SOTA_ENABLED=false. See https://api-db2.sota.org.uk/docs');
+          this.emit('circuit_open', { reason: 'endpoint_deprecated' });
+          return; // Exit the loop
+        }
+
         const currentSpots = new Map();
         for (const item of rawspots) {
           // Safety: Validate item is object with required fields
@@ -187,6 +195,17 @@ module.exports = class SOTASpots extends events.EventEmitter {
     }
   }
   
+  /**
+   * Detect the DEPRECATED placeholder the retired SOTA endpoint returns
+   * with HTTP 200 instead of spots (see issue #39).
+   * @param {Array} rawspots
+   * @returns {boolean}
+   */
+  static isDeprecatedResponse(rawspots) {
+    return Array.isArray(rawspots) &&
+      rawspots.some(s => s && typeof s === 'object' && s.associationCode === 'DEPRECATED');
+  }
+
   /**
    * Reset circuit breaker (can be called externally to retry)
    */

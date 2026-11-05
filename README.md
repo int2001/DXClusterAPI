@@ -117,7 +117,9 @@ POTA_ENABLED=true
 POTA_POLLING_INTERVAL=120
 
 # SOTA Integration
-SOTA_ENABLED=true
+# DEPRECATED: SOTA retired its public spots API; module self-disables.
+# See https://api-db2.sota.org.uk/docs
+SOTA_ENABLED=false
 SOTA_POLLING_INTERVAL=120
 
 # Module Configuration
@@ -274,13 +276,14 @@ POTA_POLLING_INTERVAL=120
 ```
 
 ### SOTA Module (`SOTA_ENABLED`)
-- **Default**: `true` (enabled)
-- **Purpose**: Polls SOTA API for Summits on the Air spots
-- **Polling Interval**: Configurable (default 120 seconds)
+- **Default**: `false` (disabled)
+- **Status**: **Deprecated.** SOTA retired the public spots API (`api2.sota.org.uk`) — it answers HTTP 200 with a placeholder instead of spots. The module detects this and stops polling automatically, even if `SOTA_ENABLED=true` is left in an existing `.env`. No `.env` edit required.
+- **Workaround for SOTA spots**: DXSpider nodes that inject SOTAwatch spots still deliver SOTA spots with summit references through `CLUSTERS`.
+- **Re-enable**: Not possible until a new endpoint is integrated (blocked on SOTA's API-consumers group, see their [terms of service](https://api-db2.sota.org.uk/docs)).
 
 **Example:**
 ```bash
-SOTA_ENABLED=true
+SOTA_ENABLED=false
 SOTA_POLLING_INTERVAL=120
 ```
 
